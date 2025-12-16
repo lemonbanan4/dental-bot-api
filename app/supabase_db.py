@@ -15,7 +15,7 @@ if not supabase_url or not supabase_key:
 try:
     sb: Client = create_client(supabase_url, supabase_key)
 except Exception as exc:  # surface clear error if the key is wrong
-    raise RuntimeError("Failed to create Supabase client (check SUPABASE_SECRET_KEY)") from exc
+    raise RuntimeError("Failed to create Supabase client (check SUPABASE_SERVICE_ROLE_KEY)") from exc
 
 
 def get_clinic_by_public_id(public_clinic_id: str) -> Optional[dict]:
@@ -93,6 +93,5 @@ def create_lead(
         "message": message,
     }).execute()
     return (res.data or [])[0] if res.data else {"ok": True}
-
 
 

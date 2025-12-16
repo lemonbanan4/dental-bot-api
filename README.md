@@ -8,7 +8,7 @@ FastAPI service that powers the dental assistant chat. This repo intentionally a
 
 Key vars:
 - `OPENAI_API_KEY` (required)
-- `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (required if using Supabase persistence)
+- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (required if using Supabase persistence)
 - `IP_HASH_SALT` (required) — use a random string; do not reuse the old one.
 
 Generate a new hash salt (example):
