@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = Field(default="dev", alias="APP_ENV")
-    api_key: str = FIELD(default="change-me", alias="API_KEY")
+    api_key: str = Field(default="change-me", alias="API_KEY")
     allowed_origins: str = Field(default="*", alias="ALLOWED_ORIGINS")
 
     llm_provider: str = Field(default="openai", alias="LLM_PROVIDER")
@@ -14,7 +14,13 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
 
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
-    antropic_model: str = Field(default="claude-3-5-sonnet-latest", alias="ANTHROPIC_MODEL")
+    anthropic_model: str = Field(default="claude-3-5-sonnet-latest", alias="ANTHROPIC_MODEL")
+
+    supabase_url: str = Field(default="", alias="SUPABASE_URL")
+    supabase_service_role_key: str = Field(default="", alias="SUPABASE_SERVICE_ROLE_KEY")
+
+    ip_hash_salt: str = Field(default="", alias="IP_HASH_SALT")
+    chat_memory_messages: int = Field(default=10, alias="CHAT_MEMORY_MESSAGES")
 
     def origins_list(self) -> List[str]:
         if self.allowed_origins.strip() == "*":
@@ -22,4 +28,3 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
     
 settings = Settings()
-
