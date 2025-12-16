@@ -1,8 +1,12 @@
 from __future__ import annotations
+
 from typing import Optional
 from supabase import Client, create_client
-
 from app.config import settings
+import os
+print("SUPABASE_URL:", os.getenv("SUPABASE_URL"))
+print("SUPABASE_SERVICE_ROLE_KEY present:", bool(os.getenv("SUPABASE_SERVICE_ROLE_KEY")))
+
 
 # Normalize values to avoid trailing newlines/spaces from env files.
 supabase_url = settings.supabase_url.strip()
