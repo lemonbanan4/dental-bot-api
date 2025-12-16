@@ -4,11 +4,18 @@ from supabase import Client, create_client
 
 from app.config import settings
 
+# Normalize values to avoid trailing newlines/spaces from env files.
+supabase_url = settings.supabase_url.strip()
+supabase_key = settings.supabase_service_role_key.strip()
+
 # Initialize client once. Fail fast if creds are missing.
-if not settings.supabase_url or not settings.supabase_service_role_key:
+if not supabase_url or not supabase_key:
     raise RuntimeError("Supabase URL/service role key are not configured")
 
-sb: Client = create_client(settings.supabase_url, settings.supabase_service_role_key)
+try:
+    sb: Client = create_client(supabase_url, supabase_key)
+except Exception as exc:  # surface clear error if the key is wrong
+    raise RuntimeError("Failed to create Supabase client (check SUPABASE_SECRET_KEY)") from exc
 
 
 def get_clinic_by_public_id(public_clinic_id: str) -> Optional[dict]:
@@ -86,7 +93,6 @@ def create_lead(
         "message": message,
     }).execute()
     return (res.data or [])[0] if res.data else {"ok": True}
-
 
 
 

@@ -1,10 +1,12 @@
+from typing import Optional
+
 from fastapi import Header, HTTPException, status
 
 from app.config import settings
 
 
 async def require_api_key(
-    x_api_key: str | None = Header(default=None, alias="X-API-Key", convert_underscores=False),
+    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key", convert_underscores=False),
 ):
     """
     Simple header-based API key check. Expects header: X-API-Key: <key>.
