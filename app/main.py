@@ -4,6 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.routes import chat, clinics, leads
 
+from app.supabase_db import sb
+
 app = FastAPI(title="Dental Bot API", version="0.1.0")
 
 origins = settings.origins_list()
@@ -27,4 +29,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 def health():
     return {"ok": True, "env": settings.app_env}
 
+
+@app.get("/debug/clinics")
+def debug_clinics():
+    res = sb.table("clinics").select("clinic_id,clinic_name").limit(50).execute()
+    return {"clinics": res.data}
 
