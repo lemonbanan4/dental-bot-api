@@ -4,13 +4,12 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.routes import chat, clinics, leads
 
-
 app = FastAPI(title="Dental Bot API", version="0.1.0")
 
 origins = settings.origins_list()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins != ["*"] else ["*"],
+    allow_origins=settings.origins_list(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
