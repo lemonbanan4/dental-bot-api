@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     ip_hash_salt: str = Field(default="", alias="IP_HASH_SALT")
     chat_memory_messages: int = Field(default=10, alias="CHAT_MEMORY_MESSAGES")
 
+    public_api_base: str = Field(default="", alias="PUBLIC_API_BASE")
+    public_widget_src: str = Field(default="https://dental-bot-widget.vercel.app/widget.js", alias="PUBLIC_WIDGET_SRC")
+
+
     def origins_list(self) -> List[str]:
         if self.allowed_origins.strip() == "*":
             return ["*"]

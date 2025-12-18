@@ -2,9 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
-from app.routes import chat, clinics, leads
-
+from app.routes import chat, clinics, leads, public, admin
 from app.supabase_db import sb
+
+
 
 app = FastAPI(title="Dental Bot API", version="0.1.0")
 
@@ -20,6 +21,7 @@ app.add_middleware(
 app.include_router(chat.router)
 app.include_router(clinics.router)
 app.include_router(leads.router)
+app.include_router(admin.router)
 
 # Serve static assets (e.g., widget.js)
 app.mount("/static", StaticFiles(directory="static"), name="static")
