@@ -22,6 +22,8 @@ app.include_router(chat.router)
 app.include_router(clinics.router)
 app.include_router(leads.router)
 app.include_router(admin.router)
+app.include_router(public.router)
+
 
 # Serve static assets (e.g., widget.js)
 app.mount("/static", StaticFiles(directory="static"), name="static")
