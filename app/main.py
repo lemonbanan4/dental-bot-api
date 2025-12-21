@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.routes import chat, clinics, leads, public, admin
-from app.supabase_db import sb
+from app.supabase_db import get_supabase_client
 
 
 
@@ -36,6 +36,16 @@ def health():
 
 @app.get("/debug/clinics")
 def debug_clinics():
+    sb = get_supabase_client()
     res = sb.table("clinics").select("clinic_id,clinic_name").limit(50).execute()
     return {"clinics": res.data}
+
+
+@app.get("/")
+def root():
+    return {
+        "service": "Dental Bot API",
+        "status": "running",
+        "health": "/health"
+    }
 

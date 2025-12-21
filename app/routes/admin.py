@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Header
 from app.config import settings
-from app.supabase_db import sb
+from app.supabase_db import get_supabase_client
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -17,6 +17,7 @@ def upsert_clinic(payload: dict, x_api_key: str = Header(default="")):
         raise HTTPException(status_code=400, detail="clinic_id is required")
     
     # Upsert by clinic_id
+    sb = get_supabase_client()
     res = (
         sb.table("clinics")
         .upsert(payload, on_conflict="clinic_id")
@@ -46,6 +47,7 @@ def upsert_clinic(payload: dict, x_api_key: str = Header(default="")):
 @router.get("/clinics")
 def list_clinics(x_api_key: str = Header(default="")):
     require_api_key(x_api_key)
+    sb = get_supabase_client()
     res = sb.table("clinics").select("clinic_id,clinic_name,status,plan,created_at").order("created_at", desc=True).limit(100).execute()
     return {"clinics": res.data or []}
 

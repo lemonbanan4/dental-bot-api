@@ -5,22 +5,36 @@ from supabase import Client, create_client
 from app.config import settings
 
 
+# Lazy-init supabase client so imports don't crash when env vars are missing.
+_sb: Optional[Client] = None
 
-# Normalize values to avoid trailing newlines/spaces from env files.
-supabase_url = settings.supabase_url.strip()
-supabase_key = settings.supabase_service_role_key.strip()
 
-# Initialize client once. Fail fast if creds are missing.
-if not supabase_url or not supabase_key:
-    raise RuntimeError("Supabase URL/service role key are not configured")
+def get_supabase_client() -> Client:
+    """Return a Supabase Client, initializing it on first use.
 
-try:
-    sb: Client = create_client(supabase_url, supabase_key)
-except Exception as exc:  # surface clear error if the key is wrong
-    raise RuntimeError("Failed to create Supabase client (check SUPABASE_SERVICE_ROLE_KEY)") from exc
+    Raises a clear RuntimeError if the required env vars are not configured
+    or the client cannot be created. This avoids failing at import time.
+    """
+    global _sb
+    if _sb is not None:
+        return _sb
+
+    supabase_url = settings.supabase_url.strip()
+    supabase_key = settings.supabase_service_role_key.strip()
+
+    if not supabase_url or not supabase_key:
+        raise RuntimeError("Supabase URL/service role key are not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.")
+
+    try:
+        _sb = create_client(supabase_url, supabase_key)
+    except Exception as exc:  # surface clear error if the key is wrong
+        raise RuntimeError("Failed to create Supabase client (check SUPABASE_SERVICE_ROLE_KEY)") from exc
+
+    return _sb
 
 
 def get_clinic_by_public_id(public_clinic_id: str) -> Optional[dict]:
+    sb = get_supabase_client()
     res = (
         sb.table("clinics")
         .select("*")
@@ -39,12 +53,13 @@ def get_or_create_session(
         user_agent: str | None,
         ip_hash: str | None,
 ) -> dict:
+    sb = get_supabase_client()
     # Try fetch
     res = sb.table("chat_sessions").select("*").eq("session_key", session_key).limit(1).execute()
     rows = res.data or []
     if rows:
         return rows[0]
-    
+
     # Create
     payload = {
         "clinic_id": clinic_uuid,
@@ -58,6 +73,7 @@ def get_or_create_session(
     return (created.data or [payload])[0]
 
 def insert_message(session_uuid: str, role: str, content: str) -> None:
+    sb = get_supabase_client()
     sb.table("chat_messages").insert({
         "session_id": session_uuid,
         "role": role,
@@ -65,6 +81,7 @@ def insert_message(session_uuid: str, role: str, content: str) -> None:
     }).execute()
 
 def fetch_recent_messages(session_uuid: str, limit: int = 10) -> list[dict]:
+    sb = get_supabase_client()
     # newest first -> reverse for chronological order
     res = (
         sb.table("chat_messages")
@@ -86,6 +103,7 @@ def create_lead(
         email: str | None,
         message: str | None,
 ) -> dict:
+    sb = get_supabase_client()
     res = sb.table("leads").insert({
         "clinic_id": clinic_uuid,
         "session_id": session_uuid,
