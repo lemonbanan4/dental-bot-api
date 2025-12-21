@@ -22,6 +22,7 @@ def upsert_clinic(payload: dict, x_api_key: str = Header(default="")):
         .upsert(payload, on_conflict="clinic_id")
         .execute()
     )
+    
 
     api_base = (settings.public_api_base or "").rstrip("/")
     widget_src = (settings.public_widget_src or "").rstrip("/")
