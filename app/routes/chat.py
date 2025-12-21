@@ -1,9 +1,11 @@
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
+import json
 from uuid import uuid4
 
 from app.models import ChatRequest, ChatResponse
 from app.prompts import BASE_SYSTEM, clinic_context_block
-from app.services.llm import chat_completion
+from app.services.llm import chat_completion, chat_completion_stream
 from app.services.guardrails import is_emergency, is_symptom_or_diagnosis_request
 from app.utils.rate_limit import limit
 from app.utils.privacy import hash_ip
@@ -18,7 +20,7 @@ from app.supabase_db import (
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.post("", response_model=ChatResponse)
-async def chat(req: ChatRequest, request: Request):
+async def chat(req: ChatRequest, request: Request, stream: bool = False):
     limit(request, max_per_minute=90)
 
     # ✅ Supabase clinic lookup (not app.db)
@@ -77,12 +79,37 @@ async def chat(req: ChatRequest, request: Request):
 
     system = BASE_SYSTEM + "\n\n" + clinic_context_block(clinic)
 
-    try:
-        llm_reply = await chat_completion(system=system, messages=llm_messages)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"LLM error: {str(e)}")
+    if not stream:
+        try:
+            llm_reply = await chat_completion(system=system, messages=llm_messages)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"LLM error: {str(e)}")
 
-    # ✅ log assistant message
-    insert_message(session["id"], "assistant", llm_reply)
+        # ✅ log assistant message
+        insert_message(session["id"], "assistant", llm_reply)
 
-    return ChatResponse(reply=llm_reply, session_id=session_id, handoff=False)
+        return ChatResponse(reply=llm_reply, session_id=session_id, handoff=False)
+
+    # Streaming path (NDJSON lines). Each yielded line is a JSON object.
+    async def event_stream():
+        parts = []
+        try:
+            async for chunk in chat_completion_stream(system=system, messages=llm_messages):
+                parts.append(chunk)
+                obj = {"text": chunk}
+                yield (json.dumps(obj) + "\n").encode()
+
+            full = "".join(parts)
+            # log the finished assistant message
+            insert_message(session["id"], "assistant", full)
+
+            # final metadata line
+            meta = {"done": True}
+            if clinic.get("booking_url"):
+                meta["booking_url"] = clinic.get("booking_url")
+            yield (json.dumps(meta) + "\n").encode()
+        except Exception as e:
+            # send an error line for the client to consume
+            yield (json.dumps({"error": str(e)}) + "\n").encode()
+
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
