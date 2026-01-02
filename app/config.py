@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     public_api_base: str = Field(default="", alias="PUBLIC_API_BASE")
     public_widget_src: str = Field(default="https://dental-bot-widget.vercel.app/widget.js", alias="PUBLIC_WIDGET_SRC")
     redis_url: str = Field(default="", alias="REDIS_URL")
+    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
 
 
     def origins_list(self) -> List[str]:

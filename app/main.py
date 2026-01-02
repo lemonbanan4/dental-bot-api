@@ -9,6 +9,9 @@ from app.config import settings
 import asyncio
 
 _redis = None
+from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
+from fastapi.responses import Response
+import sentry_sdk
 
 
 
@@ -68,6 +71,31 @@ async def _connect_redis():
             print("Connected to Redis")
         except Exception as e:
             print("Warning: could not connect to Redis:", e)
+    # initialize Sentry if configured
+    if settings.app_env != 'dev' and getattr(settings, 'sentry_dsn', None):
+        try:
+            sentry_sdk.init(dsn=settings.sentry_dsn, environment=settings.app_env)
+            print("Sentry initialized")
+        except Exception as e:
+            print("Warning: could not init Sentry:", e)
+
+# Prometheus metrics
+REQUEST_COUNTER = Counter('dbot_requests_total', 'Total HTTP requests', ['method', 'path'])
+
+
+@app.middleware('http')
+async def count_requests(request, call_next):
+    try:
+        REQUEST_COUNTER.labels(method=request.method, path=request.url.path).inc()
+    except Exception:
+        pass
+    return await call_next(request)
+
+
+@app.get('/metrics')
+def metrics():
+    data = generate_latest()
+    return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
 
 @app.on_event("shutdown")

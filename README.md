@@ -36,3 +36,20 @@ uvicorn app.main:app --reload
 
 ## Static demo page
 - A demo page is available at `static/demo_embed.html` when running the API locally. It loads the static `/static/widget.js` and shows the widget.
+
+## Docker and local compose (recommended for agency demos)
+
+Run the app and Redis locally with Docker Compose:
+
+```bash
+docker-compose up --build
+```
+
+This exposes:
+- API: `http://localhost:8000`
+- Redis: `localhost:6379`
+
+Environment variables to set in production (examples):
+- `REDIS_URL=redis://:<password>@redis-host:6379/0`
+- `SENTRY_DSN` (optional for error monitoring)
+
