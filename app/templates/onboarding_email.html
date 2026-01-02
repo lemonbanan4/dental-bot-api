@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body { font-family: system-ui, -apple-system, Arial, sans-serif; color:#111; }
+      .card { border-radius:8px; padding:20px; border:1px solid #eee; }
+      .snippet { background:#f9fafb; padding:12px; border-radius:6px; font-family:monospace; white-space:pre-wrap }
+      .preview { margin-top:12px }
+      .brand { display:flex; gap:12px; align-items:center }
+      .logo { width:48px; height:48px; border-radius:6px; object-fit:cover }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="brand">
+        {% if logo_url %}
+          <img class="logo" src="{{ logo_url }}" alt="logo" />
+        {% endif %}
+        <div>
+          <div style="font-weight:800">{{ clinic_name or 'Your Clinic' }}</div>
+          <div style="color:#666;font-size:13px">Dental Bot setup</div>
+        </div>
+      </div>
+
+      <p>Thanks for onboarding. Add this snippet to your site's HTML (inside &lt;body&gt;):</p>
+      <div class="snippet">{{ snippet }}</div>
+
+      <div class="preview">
+        <p style="font-size:13px;color:#666">Preview (what the widget will show):</p>
+        <div style="width:320px;border:1px solid #eee;padding:10px;border-radius:10px">{{ preview_text or 'Clinic Assistant' }}</div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body { font-family: system-ui, -apple-system, Arial, sans-serif; color:#111; }
+      .card { border-radius:8px; padding:20px; border:1px solid #eee; }
+      .brand { display:flex; align-items:center; gap:12px; }
+      .logo { width:48px; height:48px; border-radius:6px; background:#f3f4f6; object-fit:cover }
+      .accent { color: {{ theme or '#16a34a' }} }
+      .lead-field { margin:8px 0; }
+      pre { background:#f9fafb; padding:12px; border-radius:6px; overflow:auto }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="brand">
+        {% if logo_url %}
+          <img class="logo" src="{{ logo_url }}" alt="logo" />
+        {% endif %}
+        <div>
+          <div class="accent"><strong>New lead — {{ clinic_name }}</strong></div>
+          <div style="font-size:13px;color:#666">Received via Dental Bot widget</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:16px">Lead details</h3>
+      <div class="lead-field"><strong>Name:</strong> {{ lead.name or '—' }}</div>
+      <div class="lead-field"><strong>Phone:</strong> {{ lead.phone or '—' }}</div>
+      <div class="lead-field"><strong>Email:</strong> {{ lead.email or '—' }}</div>
+      <div class="lead-field"><strong>Message:</strong>
+        <div><pre>{{ lead.message or '' }}</pre></div>
+      </div>
+
+      <div style="margin-top:12px;font-size:13px;color:#555">Session: {{ lead.session_id or '—' }}</div>
+    </div>
+  </body>
+</html>
