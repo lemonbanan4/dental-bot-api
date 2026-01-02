@@ -10,6 +10,12 @@ def patch_db_functions(monkeypatch):
     monkeypatch.setattr('app.routes.leads.get_clinic_by_public_id', lambda cid: {"id": "fake-clinic-1"} if cid == "test-clinic" else None)
     monkeypatch.setattr('app.routes.leads.get_or_create_session', lambda **kwargs: {"id": "sess-1"})
     monkeypatch.setattr('app.routes.leads.create_lead', lambda **kwargs: None)
+    # ensure rate limiter store is cleared for tests
+    try:
+        import app.rate_limit as rl
+        rl._store.clear()
+    except Exception:
+        pass
 
 
 def test_lead_post_success():
