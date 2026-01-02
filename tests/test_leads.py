@@ -16,6 +16,16 @@ def patch_db_functions(monkeypatch):
         rl._store.clear()
     except Exception:
         pass
+    # if REDIS_URL present, flush redis for deterministic tests
+    import os
+    red = os.environ.get('REDIS_URL')
+    if red:
+        try:
+            import redis
+            rc = redis.from_url(red)
+            rc.flushdb()
+        except Exception:
+            pass
 
 
 def test_lead_post_success():

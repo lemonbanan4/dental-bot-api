@@ -4,6 +4,11 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.routes import chat, clinics, leads, public, admin
 from app.supabase_db import get_supabase_client
+from app.config import settings
+
+import asyncio
+
+_redis = None
 
 
 
@@ -21,6 +26,7 @@ app.add_middleware(
 app.include_router(chat.router)
 app.include_router(clinics.router)
 app.include_router(leads.router)
+app.include_router(leads.router2)
 app.include_router(admin.router)
 app.include_router(public.router)
 
@@ -48,4 +54,28 @@ def root():
         "status": "running",
         "health": "/health"
     }
+
+
+@app.on_event("startup")
+async def _connect_redis():
+    # Connect to Redis if REDIS_URL provided
+    if settings.redis_url:
+        try:
+            import redis.asyncio as aioredis
+            app.state.redis = aioredis.from_url(settings.redis_url)
+            # quick ping to validate connection
+            await app.state.redis.ping()
+            print("Connected to Redis")
+        except Exception as e:
+            print("Warning: could not connect to Redis:", e)
+
+
+@app.on_event("shutdown")
+async def _close_redis():
+    r = getattr(app.state, 'redis', None)
+    if r is not None:
+        try:
+            await r.close()
+        except Exception:
+            pass
 
