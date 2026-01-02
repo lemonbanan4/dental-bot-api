@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Header
 from app.config import settings
 from app.supabase_db import get_supabase_client
+from app.utils.email import send_onboarding_email
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -36,6 +37,13 @@ def upsert_clinic(payload: dict, x_api_key: str = Header(default="")):
         data-clinic="{clinic_id}"
         data-api="{api_base}"
         ></script>"""
+        # send onboarding email if clinic has contact_email
+        contact_email = payload.get('contact_email') or payload.get('email')
+        if contact_email:
+            try:
+                send_onboarding_email(contact_email, payload.get('clinic_name'), snippet)
+            except Exception:
+                pass
 
         return {
             "ok": True,
