@@ -26,3 +26,13 @@ uvicorn app.main:app --reload
 
 ## Health
 `GET /health` returns `{ "ok": true, "env": "<APP_ENV>" }`.
+
+## Embedding the widget
+- Embeddable script supports `data-theme` and `data-title` on the script tag.
+- Example script tag:
+	```html
+	<script src="https://your-cdn/widget.js" data-api="https://api.example.com" data-clinic="smile-city-001" data-theme="#2563eb" data-title="Smile City Assistant"></script>
+	```
+
+## Static demo page
+- A demo page is available at `static/demo_embed.html` when running the API locally. It loads the static `/static/widget.js` and shows the widget.

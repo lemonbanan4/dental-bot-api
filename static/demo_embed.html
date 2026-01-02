@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Dental Bot Demo</title>
+  <style>body{font-family:system-ui,Arial,sans-serif;padding:24px}</style>
+</head>
+<body>
+  <h2>Static widget demo</h2>
+  <p>Demonstrates the static widget served from the API's `/static/widget.js`</p>
+  <script src="/static/widget.js"></script>
+  <script>
+    window.DentalBotWidget.init({
+      apiUrl: 'http://127.0.0.1:8000',
+      clinicId: 'smile-city-001',
+      title: 'Smile City Assistant',
+      theme: '#0ea5e9',
+      buttonLabel: 'Chat with Smile City'
+    });
+  </script>
+</body>
+</html>
