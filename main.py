@@ -1,0 +1,127 @@
+import os
+from typing import Optional, Dict, Any
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import openai
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = FastAPI()
+
+# Enable CORS for your widget
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with your specific domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- DATA MODELS ---
+class ChatRequest(BaseModel):
+    clinic_id: str
+    message: str
+    session_id: str
+    metadata: Optional[Dict[str, Any]] = None
+
+class LeadRequest(BaseModel):
+    clinic_id: str
+    session_id: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    message: Optional[str] = None
+    source: Optional[str] = None
+
+# --- AGENT PERSONAS ---
+AGENTS = {
+    "lemon-main": {
+        "name": "Lisa",
+        "role": "Business Consultant",
+        "prompt": "You are Lisa, a senior AI business consultant for Lemon Techno. Your goal is to help business owners understand how AI agents can automate their support, sales, and booking workflows. You are professional, enthusiastic, and knowledgeable about SaaS, automation, and ROI. Keep answers concise.",
+        "booking_url": "https://calendly.com/lemon-techno/demo"
+    },
+    "dental-demo": {
+        "name": "Sarah",
+        "role": "Dental Receptionist",
+        "prompt": "You are Sarah, a warm and professional dental receptionist. You help patients book appointments, answer questions about procedures (whitening, implants, cleaning), and handle emergency triage. If a patient mentions pain, ask about severity.",
+        "booking_url": "https://calendly.com/lemon-techno/dental-demo"
+    },
+    "retail-demo": {
+        "name": "Emily",
+        "role": "Retail Assistant",
+        "prompt": "You are Emily, a helpful retail sales associate. You help customers find products, check order status, and handle returns. You are upbeat, use emojis occasionally, and try to upsell matching items.",
+        "booking_url": ""
+    },
+    "beauty-demo": {
+        "name": "Chloe",
+        "role": "Aesthetics Concierge",
+        "prompt": "You are Chloe, a high-end aesthetics concierge for a plastic surgery clinic. You are elegant, discreet, and knowledgeable about Botox, fillers, and surgical procedures. Your goal is to secure consultation bookings.",
+        "booking_url": "https://calendly.com/lemon-techno/beauty-demo"
+    },
+    "realestate-demo": {
+        "name": "Jessica",
+        "role": "Leasing Agent",
+        "prompt": "You are Jessica, a top real estate leasing agent. Your goal is to qualify leads for property viewings. Ask about budget, move-in date, and credit score before scheduling a tour.",
+        "booking_url": "https://calendly.com/lemon-techno/realestate-demo"
+    },
+    "support-demo": {
+        "name": "Anna",
+        "role": "Tech Support",
+        "prompt": "You are Anna, a technical support specialist. You help users troubleshoot login issues, billing questions, and software bugs. You are patient, clear, and step-by-step in your instructions.",
+        "booking_url": ""
+    }
+}
+
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "DentalBot API"}
+
+@app.get("/public/clinic/{clinic_id}")
+def get_clinic_info(clinic_id: str):
+    # Return agent info so the widget can adapt (if not overridden by HTML)
+    agent = AGENTS.get(clinic_id, AGENTS.get("lemon-main"))
+    return {
+        "clinic_name": agent["name"],
+        "booking_url": agent["booking_url"],
+        "logo_url": "" # Avatar is handled by frontend data attributes
+    }
+
+@app.post("/chat")
+def chat_endpoint(req: ChatRequest):
+    agent = AGENTS.get(req.clinic_id, AGENTS.get("lemon-main"))
+    
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return {
+            "reply": f"[System]: OpenAI API Key missing. I would be {agent['name']} answering: '{req.message}'",
+            "booking_url": agent["booking_url"]
+        }
+
+    try:
+        client = openai.OpenAI(api_key=api_key)
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": agent["prompt"]},
+                {"role": "user", "content": req.message}
+            ],
+            temperature=0.7,
+            max_tokens=250
+        )
+        reply = completion.choices[0].message.content
+        return {
+            "reply": reply,
+            "booking_url": agent["booking_url"]
+        }
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/leads")
+def submit_lead(req: LeadRequest):
+    # Here you would save to a database or send an email
+    print(f"LEAD RECEIVED [{req.clinic_id}]: {req.name} - {req.email}")
+    return {"status": "received"}
