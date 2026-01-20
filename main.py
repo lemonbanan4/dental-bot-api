@@ -30,12 +30,23 @@ LIVE_SESSIONS = {}
 LEADS = {}
 # In-memory storage for typing status
 SESSION_TYPING = {}
+# In-memory storage for feedback stats
+FEEDBACK_STATS = {}
+# In-memory storage for maintenance mode
+MAINTENANCE_MODE = {}
+# In-memory storage for custom CSS
+CUSTOM_CSS = {}
 # In-memory storage for admin message queue
 MESSAGE_QUEUE = {}
 # In-memory storage for session metadata (IPs)
 SESSION_METADATA = {}
 # In-memory blocklist
 BLOCKED_IPS = set()
+# In-memory system logs
+SYSTEM_LOGS = []
+
+# Global Admin Key
+ADMIN_KEY = "lemon-secret"
 
 # --- DATA MODELS ---
 class ChatRequest(BaseModel):
@@ -89,6 +100,29 @@ class AdminMessageRequest(BaseModel):
     message: str
     secret_key: str
 
+class BulkDeleteLeadsRequest(BaseModel):
+    lead_ids: list[str]
+    secret_key: str
+
+class UpdateKeyRequest(BaseModel):
+    current_key: str
+    new_key: str
+
+class FeedbackRequest(BaseModel):
+    clinic_id: str
+    type: str # 'up' or 'down'
+    message: Optional[str] = None
+
+class MaintenanceRequest(BaseModel):
+    clinic_id: str
+    enabled: bool
+    secret_key: str
+
+class CustomCSSRequest(BaseModel):
+    clinic_id: str
+    css: str
+    secret_key: str
+
 # --- AGENT PERSONAS ---
 DEFAULT_AGENTS = {
     "lemon-main": {
@@ -131,18 +165,34 @@ DEFAULT_AGENTS = {
 
 AGENTS = copy.deepcopy(DEFAULT_AGENTS)
 
+def log_system_event(level: str, message: str):
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "level": level,
+        "message": message
+    }
+    SYSTEM_LOGS.append(entry)
+    if len(SYSTEM_LOGS) > 200:
+        SYSTEM_LOGS.pop(0)
+    print(f"[{level}] {message}")
+
 @app.get("/")
 def root():
+    print("Root endpoint hit - DentalBot API")
     return {"status": "ok", "service": "DentalBot API"}
 
 @app.get("/public/clinic/{clinic_id}")
 def get_clinic_info(clinic_id: str):
     # Return agent info so the widget can adapt (if not overridden by HTML)
     agent = AGENTS.get(clinic_id, AGENTS.get("lemon-main"))
+    is_maintenance = MAINTENANCE_MODE.get(clinic_id, False)
+    custom_css = CUSTOM_CSS.get(clinic_id, "")
     return {
         "clinic_name": agent["name"],
         "booking_url": agent["booking_url"],
-        "logo_url": "" # Avatar is handled by frontend data attributes
+        "logo_url": "", # Avatar is handled by frontend data attributes
+        "maintenance_mode": is_maintenance,
+        "custom_css": custom_css
     }
 
 @app.post("/chat")
@@ -151,7 +201,17 @@ def chat_endpoint(req: ChatRequest, request: Request):
     if client_ip in BLOCKED_IPS:
         raise HTTPException(status_code=403, detail="Access denied")
 
+    if MAINTENANCE_MODE.get(req.clinic_id, False):
+         return {
+            "reply": "System is currently under maintenance. Please try again later.",
+            "booking_url": ""
+        }
+
+    # Ensure we always have a valid agent, defaulting to lemon-main
     agent = AGENTS.get(req.clinic_id, AGENTS.get("lemon-main"))
+    if not agent:
+        # Fallback if even lemon-main is missing (should not happen)
+        agent = {"name": "Assistant", "prompt": "You are a helpful assistant.", "booking_url": ""}
     
     # Log user message
     if req.clinic_id not in CHAT_LOGS:
@@ -199,12 +259,12 @@ def chat_endpoint(req: ChatRequest, request: Request):
             "booking_url": agent["booking_url"]
         }
     except Exception as e:
-        print(f"Error: {e}")
+        log_system_event("ERROR", f"Chat endpoint error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/admin/prompt/{clinic_id}")
 def get_agent_prompt(clinic_id: str, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     agent = AGENTS.get(clinic_id)
@@ -214,7 +274,7 @@ def get_agent_prompt(clinic_id: str, key: str):
 
 @app.post("/admin/prompt")
 def update_agent_prompt(req: PromptUpdateRequest):
-    if req.secret_key != "lemon-secret":
+    if req.secret_key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     if req.clinic_id in AGENTS:
@@ -224,13 +284,47 @@ def update_agent_prompt(req: PromptUpdateRequest):
 
 @app.post("/admin/prompt/reset")
 def reset_agent_prompt(req: PromptUpdateRequest):
-    if req.secret_key != "lemon-secret":
+    if req.secret_key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     if req.clinic_id in DEFAULT_AGENTS:
         AGENTS[req.clinic_id]["prompt"] = DEFAULT_AGENTS[req.clinic_id]["prompt"]
         return {"status": "reset", "prompt": AGENTS[req.clinic_id]["prompt"]}
     raise HTTPException(status_code=404, detail="Agent not found")
+
+@app.post("/admin/settings/key")
+def update_admin_key(req: UpdateKeyRequest):
+    global ADMIN_KEY
+    if req.current_key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    ADMIN_KEY = req.new_key
+    return {"status": "updated"}
+
+@app.get("/admin/maintenance/{clinic_id}")
+def get_maintenance_status(clinic_id: str, key: str):
+    if key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return {"enabled": MAINTENANCE_MODE.get(clinic_id, False)}
+
+@app.post("/admin/maintenance")
+def update_maintenance_mode(req: MaintenanceRequest):
+    if req.secret_key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    MAINTENANCE_MODE[req.clinic_id] = req.enabled
+    return {"status": "updated", "enabled": req.enabled}
+
+@app.get("/admin/css/{clinic_id}")
+def get_custom_css(clinic_id: str, key: str):
+    if key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return {"css": CUSTOM_CSS.get(clinic_id, "")}
+
+@app.post("/admin/css")
+def update_custom_css(req: CustomCSSRequest):
+    if req.secret_key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    CUSTOM_CSS[req.clinic_id] = req.css
+    return {"status": "updated"}
 
 def analyze_sentiment(messages):
     # Simple keyword-based sentiment analysis
@@ -249,7 +343,7 @@ def analyze_sentiment(messages):
 
 @app.get("/admin/history/{clinic_id}")
 def get_chat_history(clinic_id: str, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     raw_history = CHAT_LOGS.get(clinic_id, {})
@@ -267,7 +361,7 @@ def get_chat_history(clinic_id: str, key: str):
 
 @app.post("/admin/history/{clinic_id}/{session_id}/tags")
 def add_session_tag(clinic_id: str, session_id: str, req: SessionTagRequest):
-    if req.secret_key != "lemon-secret":
+    if req.secret_key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     if session_id not in SESSION_METADATA:
@@ -282,7 +376,7 @@ def add_session_tag(clinic_id: str, session_id: str, req: SessionTagRequest):
 
 @app.delete("/admin/history/{clinic_id}/{session_id}/tags/{tag}")
 def remove_session_tag(clinic_id: str, session_id: str, tag: str, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
         
     if session_id in SESSION_METADATA:
@@ -296,7 +390,7 @@ def remove_session_tag(clinic_id: str, session_id: str, tag: str, key: str):
 
 @app.post("/admin/block_ip")
 def block_ip(req: BlockIPRequest):
-    if req.secret_key != "lemon-secret":
+    if req.secret_key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     BLOCKED_IPS.add(req.ip)
     return {"status": "blocked", "ip": req.ip}
@@ -308,9 +402,35 @@ def report_typing(req: TypingRequest):
     SESSION_TYPING[req.clinic_id][req.session_id] = datetime.now()
     return {"status": "ok"}
 
+@app.post("/feedback")
+def submit_feedback(req: FeedbackRequest):
+    if req.clinic_id not in FEEDBACK_STATS:
+        FEEDBACK_STATS[req.clinic_id] = {"up": 0, "down": 0}
+    
+    if req.type == "up":
+        FEEDBACK_STATS[req.clinic_id]["up"] += 1
+    elif req.type == "down":
+        FEEDBACK_STATS[req.clinic_id]["down"] += 1
+        
+    return {"status": "received"}
+
+@app.get("/admin/feedback/{clinic_id}")
+def get_feedback_stats(clinic_id: str, key: str):
+    if key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return FEEDBACK_STATS.get(clinic_id, {"up": 0, "down": 0})
+
+@app.delete("/admin/feedback/{clinic_id}")
+def reset_feedback_stats(clinic_id: str, key: str):
+    if key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if clinic_id in FEEDBACK_STATS:
+        FEEDBACK_STATS[clinic_id] = {"up": 0, "down": 0}
+    return {"status": "reset"}
+
 @app.get("/admin/typing_status/{clinic_id}")
 def get_typing_status(clinic_id: str, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     now = datetime.now()
@@ -324,7 +444,7 @@ def get_typing_status(clinic_id: str, key: str):
 
 @app.post("/admin/message")
 def send_admin_message(req: AdminMessageRequest):
-    if req.secret_key != "lemon-secret":
+    if req.secret_key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     # Log to history
@@ -360,7 +480,7 @@ def heartbeat(req: HeartbeatRequest):
 
 @app.get("/admin/live_visitors")
 def get_live_visitors(key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     now = datetime.now()
@@ -381,7 +501,7 @@ def get_live_visitors(key: str):
 
 @app.delete("/admin/history/{clinic_id}/{session_id}")
 def delete_chat_session(clinic_id: str, session_id: str, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     if clinic_id in CHAT_LOGS and session_id in CHAT_LOGS[clinic_id]:
         del CHAT_LOGS[clinic_id][session_id]
@@ -390,7 +510,7 @@ def delete_chat_session(clinic_id: str, session_id: str, key: str):
 
 @app.get("/admin/leads/{clinic_id}")
 def get_leads(clinic_id: str, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     # Return leads sorted by timestamp desc
     leads = LEADS.get(clinic_id, [])
@@ -398,7 +518,7 @@ def get_leads(clinic_id: str, key: str):
 
 @app.delete("/admin/leads/{clinic_id}/{lead_id}")
 def delete_lead(clinic_id: str, lead_id: str, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     if clinic_id in LEADS:
@@ -409,9 +529,34 @@ def delete_lead(clinic_id: str, lead_id: str, key: str):
             
     raise HTTPException(status_code=404, detail="Lead not found")
 
+@app.post("/admin/leads/{clinic_id}/bulk_delete")
+def bulk_delete_leads(clinic_id: str, req: BulkDeleteLeadsRequest):
+    if req.secret_key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    if clinic_id in LEADS:
+        original_len = len(LEADS[clinic_id])
+        LEADS[clinic_id] = [l for l in LEADS[clinic_id] if l.get("id") not in req.lead_ids]
+        return {"status": "deleted", "count": original_len - len(LEADS[clinic_id])}
+            
+    raise HTTPException(status_code=404, detail="Clinic not found")
+
+@app.get("/admin/logs")
+def get_system_logs(key: str):
+    if key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return sorted(SYSTEM_LOGS, key=lambda x: x["timestamp"], reverse=True)
+
+@app.delete("/admin/logs")
+def clear_system_logs(key: str):
+    if key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    SYSTEM_LOGS.clear()
+    return {"status": "cleared"}
+
 @app.put("/admin/leads/{clinic_id}/{lead_id}/read")
 def update_lead_read_status(clinic_id: str, lead_id: str, req: LeadReadRequest, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     if clinic_id in LEADS:
@@ -424,7 +569,7 @@ def update_lead_read_status(clinic_id: str, lead_id: str, req: LeadReadRequest, 
 
 @app.put("/admin/leads/{clinic_id}/{lead_id}/note")
 def update_lead_note(clinic_id: str, lead_id: str, req: LeadNoteRequest, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     if clinic_id in LEADS:
@@ -437,7 +582,7 @@ def update_lead_note(clinic_id: str, lead_id: str, req: LeadNoteRequest, key: st
 
 @app.put("/admin/leads/{clinic_id}/{lead_id}/status")
 def update_lead_status(clinic_id: str, lead_id: str, req: LeadStatusRequest, key: str):
-    if key != "lemon-secret":
+    if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     if clinic_id in LEADS:
@@ -449,7 +594,8 @@ def update_lead_status(clinic_id: str, lead_id: str, req: LeadStatusRequest, key
     raise HTTPException(status_code=404, detail="Lead not found")
 
 @app.post("/leads")
-def submit_lead(req: LeadRequest):
+def submit_lead(req: LeadRequest, request: Request):
+    client_ip = request.client.host if request.client else "Unknown"
     if req.clinic_id not in LEADS:
         LEADS[req.clinic_id] = []
     lead_data = req.model_dump()
@@ -457,6 +603,7 @@ def submit_lead(req: LeadRequest):
     lead_data["id"] = str(uuid.uuid4())
     lead_data["read"] = False
     lead_data["status"] = "New"
+    lead_data["ip"] = client_ip
     LEADS[req.clinic_id].append(lead_data)
-    print(f"LEAD RECEIVED [{req.clinic_id}]: {req.name} - {req.email}")
+    log_system_event("INFO", f"Lead received [{req.clinic_id}]: {req.email}")
     return {"status": "received"}
