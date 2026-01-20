@@ -198,11 +198,32 @@ def reset_agent_prompt(req: PromptUpdateRequest):
         return {"status": "reset", "prompt": AGENTS[req.clinic_id]["prompt"]}
     raise HTTPException(status_code=404, detail="Agent not found")
 
+def analyze_sentiment(messages):
+    # Simple keyword-based sentiment analysis
+    text = " ".join([m["content"] for m in messages if m["role"] == "user"]).lower()
+    pos_words = {"thanks", "thank", "good", "great", "love", "excellent", "amazing", "helpful", "perfect", "appreciate"}
+    neg_words = {"bad", "worst", "terrible", "awful", "hate", "useless", "stupid", "broken", "error", "fail", "slow", "wrong"}
+    
+    score = 0
+    for w in text.split():
+        if w in pos_words: score += 1
+        if w in neg_words: score -= 1
+        
+    if score > 0: return "Positive"
+    if score < 0: return "Negative"
+    return "Neutral"
+
 @app.get("/admin/history/{clinic_id}")
 def get_chat_history(clinic_id: str, key: str):
     if key != "lemon-secret":
         raise HTTPException(status_code=401, detail="Unauthorized")
-    return CHAT_LOGS.get(clinic_id, {})
+    
+    raw_history = CHAT_LOGS.get(clinic_id, {})
+    # Transform list of messages into object with metadata
+    return {
+        sid: {"messages": msgs, "sentiment": analyze_sentiment(msgs)}
+        for sid, msgs in raw_history.items()
+    }
 
 @app.post("/heartbeat")
 def heartbeat(req: HeartbeatRequest):
