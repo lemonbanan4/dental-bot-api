@@ -1,6 +1,7 @@
 import os
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
+import copy
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -51,7 +52,7 @@ class HeartbeatRequest(BaseModel):
     session_id: str
 
 # --- AGENT PERSONAS ---
-AGENTS = {
+DEFAULT_AGENTS = {
     "lemon-main": {
         "name": "Lisa",
         "role": "Business Consultant",
@@ -89,6 +90,8 @@ AGENTS = {
         "booking_url": ""
     }
 }
+
+AGENTS = copy.deepcopy(DEFAULT_AGENTS)
 
 @app.get("/")
 def root():
@@ -171,6 +174,16 @@ def update_agent_prompt(req: PromptUpdateRequest):
     if req.clinic_id in AGENTS:
         AGENTS[req.clinic_id]["prompt"] = req.prompt
         return {"status": "updated", "agent": AGENTS[req.clinic_id]["name"]}
+    raise HTTPException(status_code=404, detail="Agent not found")
+
+@app.post("/admin/prompt/reset")
+def reset_agent_prompt(req: PromptUpdateRequest):
+    if req.secret_key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    if req.clinic_id in DEFAULT_AGENTS:
+        AGENTS[req.clinic_id]["prompt"] = DEFAULT_AGENTS[req.clinic_id]["prompt"]
+        return {"status": "reset", "prompt": AGENTS[req.clinic_id]["prompt"]}
     raise HTTPException(status_code=404, detail="Agent not found")
 
 @app.get("/admin/history/{clinic_id}")
