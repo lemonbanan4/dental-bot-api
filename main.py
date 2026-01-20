@@ -71,6 +71,10 @@ class BlockIPRequest(BaseModel):
     ip: str
     secret_key: str
 
+class SessionTagRequest(BaseModel):
+    tag: str
+    secret_key: str
+
 # --- AGENT PERSONAS ---
 DEFAULT_AGENTS = {
     "lemon-main": {
@@ -241,10 +245,40 @@ def get_chat_history(clinic_id: str, key: str):
         sid: {
             "messages": msgs, 
             "sentiment": analyze_sentiment(msgs),
-            "ip": SESSION_METADATA.get(sid, {}).get("ip", "Unknown")
+            "ip": SESSION_METADATA.get(sid, {}).get("ip", "Unknown"),
+            "tags": SESSION_METADATA.get(sid, {}).get("tags", [])
         }
         for sid, msgs in raw_history.items()
     }
+
+@app.post("/admin/history/{clinic_id}/{session_id}/tags")
+def add_session_tag(clinic_id: str, session_id: str, req: SessionTagRequest):
+    if req.secret_key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    if session_id not in SESSION_METADATA:
+        SESSION_METADATA[session_id] = {}
+    
+    tags = SESSION_METADATA[session_id].get("tags", [])
+    if req.tag not in tags:
+        tags.append(req.tag)
+        SESSION_METADATA[session_id]["tags"] = tags
+        
+    return {"status": "added", "tags": tags}
+
+@app.delete("/admin/history/{clinic_id}/{session_id}/tags/{tag}")
+def remove_session_tag(clinic_id: str, session_id: str, tag: str, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    if session_id in SESSION_METADATA:
+        tags = SESSION_METADATA[session_id].get("tags", [])
+        if tag in tags:
+            tags.remove(tag)
+            SESSION_METADATA[session_id]["tags"] = tags
+            return {"status": "removed", "tags": tags}
+            
+    return {"status": "not found", "tags": SESSION_METADATA.get(session_id, {}).get("tags", [])}
 
 @app.post("/admin/block_ip")
 def block_ip(req: BlockIPRequest):
