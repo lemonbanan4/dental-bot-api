@@ -60,6 +60,9 @@ class LeadReadRequest(BaseModel):
 class LeadNoteRequest(BaseModel):
     note: str
 
+class LeadStatusRequest(BaseModel):
+    status: str
+
 # --- AGENT PERSONAS ---
 DEFAULT_AGENTS = {
     "lemon-main": {
@@ -285,6 +288,19 @@ def update_lead_note(clinic_id: str, lead_id: str, req: LeadNoteRequest, key: st
             
     raise HTTPException(status_code=404, detail="Lead not found")
 
+@app.put("/admin/leads/{clinic_id}/{lead_id}/status")
+def update_lead_status(clinic_id: str, lead_id: str, req: LeadStatusRequest, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    if clinic_id in LEADS:
+        for lead in LEADS[clinic_id]:
+            if lead.get("id") == lead_id:
+                lead["status"] = req.status
+                return {"status": "updated", "lead_status": req.status}
+            
+    raise HTTPException(status_code=404, detail="Lead not found")
+
 @app.post("/leads")
 def submit_lead(req: LeadRequest):
     if req.clinic_id not in LEADS:
@@ -293,6 +309,7 @@ def submit_lead(req: LeadRequest):
     lead_data["timestamp"] = datetime.now().isoformat()
     lead_data["id"] = str(uuid.uuid4())
     lead_data["read"] = False
+    lead_data["status"] = "New"
     LEADS[req.clinic_id].append(lead_data)
     print(f"LEAD RECEIVED [{req.clinic_id}]: {req.name} - {req.email}")
     return {"status": "received"}
