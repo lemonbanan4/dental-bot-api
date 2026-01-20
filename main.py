@@ -54,6 +54,9 @@ class HeartbeatRequest(BaseModel):
     clinic_id: str
     session_id: str
 
+class LeadReadRequest(BaseModel):
+    read: bool
+
 # --- AGENT PERSONAS ---
 DEFAULT_AGENTS = {
     "lemon-main": {
@@ -253,6 +256,19 @@ def delete_lead(clinic_id: str, lead_id: str, key: str):
             
     raise HTTPException(status_code=404, detail="Lead not found")
 
+@app.put("/admin/leads/{clinic_id}/{lead_id}/read")
+def update_lead_read_status(clinic_id: str, lead_id: str, req: LeadReadRequest, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    if clinic_id in LEADS:
+        for lead in LEADS[clinic_id]:
+            if lead.get("id") == lead_id:
+                lead["read"] = req.read
+                return {"status": "updated", "read": req.read}
+            
+    raise HTTPException(status_code=404, detail="Lead not found")
+
 @app.post("/leads")
 def submit_lead(req: LeadRequest):
     if req.clinic_id not in LEADS:
@@ -260,6 +276,7 @@ def submit_lead(req: LeadRequest):
     lead_data = req.model_dump()
     lead_data["timestamp"] = datetime.now().isoformat()
     lead_data["id"] = str(uuid.uuid4())
+    lead_data["read"] = False
     LEADS[req.clinic_id].append(lead_data)
     print(f"LEAD RECEIVED [{req.clinic_id}]: {req.name} - {req.email}")
     return {"status": "received"}
