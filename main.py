@@ -25,6 +25,8 @@ app.add_middleware(
 CHAT_LOGS = {}
 # In-memory storage for live sessions
 LIVE_SESSIONS = {}
+# In-memory storage for leads
+LEADS = {}
 
 # --- DATA MODELS ---
 class ChatRequest(BaseModel):
@@ -229,8 +231,20 @@ def delete_chat_session(clinic_id: str, session_id: str, key: str):
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="Session not found")
 
+@app.get("/admin/leads/{clinic_id}")
+def get_leads(clinic_id: str, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    # Return leads sorted by timestamp desc
+    leads = LEADS.get(clinic_id, [])
+    return sorted(leads, key=lambda x: x.get("timestamp", ""), reverse=True)
+
 @app.post("/leads")
 def submit_lead(req: LeadRequest):
-    # Here you would save to a database or send an email
+    if req.clinic_id not in LEADS:
+        LEADS[req.clinic_id] = []
+    lead_data = req.model_dump()
+    lead_data["timestamp"] = datetime.now().isoformat()
+    LEADS[req.clinic_id].append(lead_data)
     print(f"LEAD RECEIVED [{req.clinic_id}]: {req.name} - {req.email}")
     return {"status": "received"}
