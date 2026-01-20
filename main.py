@@ -1,6 +1,6 @@
 import os
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -22,6 +22,8 @@ app.add_middleware(
 
 # In-memory storage for chat history (for demo purposes)
 CHAT_LOGS = {}
+# In-memory storage for live sessions
+LIVE_SESSIONS = {}
 
 # --- DATA MODELS ---
 class ChatRequest(BaseModel):
@@ -43,6 +45,10 @@ class PromptUpdateRequest(BaseModel):
     clinic_id: str
     prompt: str
     secret_key: str
+
+class HeartbeatRequest(BaseModel):
+    clinic_id: str
+    session_id: str
 
 # --- AGENT PERSONAS ---
 AGENTS = {
@@ -105,6 +111,12 @@ def chat_endpoint(req: ChatRequest):
     # Log user message
     if req.clinic_id not in CHAT_LOGS:
         CHAT_LOGS[req.clinic_id] = {}
+    
+    # Also log a heartbeat on any message
+    if req.clinic_id not in LIVE_SESSIONS:
+        LIVE_SESSIONS[req.clinic_id] = {}
+    LIVE_SESSIONS[req.clinic_id][req.session_id] = datetime.now()
+
     if req.session_id not in CHAT_LOGS[req.clinic_id]:
         CHAT_LOGS[req.clinic_id][req.session_id] = []
     
@@ -166,6 +178,34 @@ def get_chat_history(clinic_id: str, key: str):
     if key != "lemon-secret":
         raise HTTPException(status_code=401, detail="Unauthorized")
     return CHAT_LOGS.get(clinic_id, {})
+
+@app.post("/heartbeat")
+def heartbeat(req: HeartbeatRequest):
+    if req.clinic_id not in LIVE_SESSIONS:
+        LIVE_SESSIONS[req.clinic_id] = {}
+    LIVE_SESSIONS[req.clinic_id][req.session_id] = datetime.now()
+    return {"status": "ok"}
+
+@app.get("/admin/live_visitors")
+def get_live_visitors(key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    now = datetime.now()
+    active_count = 0
+    # Clean up old sessions while we're at it
+    for clinic_id, sessions in list(LIVE_SESSIONS.items()):
+        for session_id, last_seen in list(sessions.items()):
+            # Consider active if seen in last 2 minutes
+            if now - last_seen < timedelta(minutes=2):
+                active_count += 1
+            else:
+                # Clean up inactive session
+                del LIVE_SESSIONS[clinic_id][session_id]
+        if not LIVE_SESSIONS[clinic_id]:
+            del LIVE_SESSIONS[clinic_id]
+
+    return {"live_visitors": active_count}
 
 @app.delete("/admin/history/{clinic_id}/{session_id}")
 def delete_chat_session(clinic_id: str, session_id: str, key: str):
