@@ -2,6 +2,7 @@ import os
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 import copy
+import uuid
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -239,12 +240,26 @@ def get_leads(clinic_id: str, key: str):
     leads = LEADS.get(clinic_id, [])
     return sorted(leads, key=lambda x: x.get("timestamp", ""), reverse=True)
 
+@app.delete("/admin/leads/{clinic_id}/{lead_id}")
+def delete_lead(clinic_id: str, lead_id: str, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    if clinic_id in LEADS:
+        original_len = len(LEADS[clinic_id])
+        LEADS[clinic_id] = [l for l in LEADS[clinic_id] if l.get("id") != lead_id]
+        if len(LEADS[clinic_id]) < original_len:
+            return {"status": "deleted"}
+            
+    raise HTTPException(status_code=404, detail="Lead not found")
+
 @app.post("/leads")
 def submit_lead(req: LeadRequest):
     if req.clinic_id not in LEADS:
         LEADS[req.clinic_id] = []
     lead_data = req.model_dump()
     lead_data["timestamp"] = datetime.now().isoformat()
+    lead_data["id"] = str(uuid.uuid4())
     LEADS[req.clinic_id].append(lead_data)
     print(f"LEAD RECEIVED [{req.clinic_id}]: {req.name} - {req.email}")
     return {"status": "received"}
