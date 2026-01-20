@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 import copy
 import uuid
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import openai
@@ -28,6 +28,10 @@ CHAT_LOGS = {}
 LIVE_SESSIONS = {}
 # In-memory storage for leads
 LEADS = {}
+# In-memory storage for session metadata (IPs)
+SESSION_METADATA = {}
+# In-memory blocklist
+BLOCKED_IPS = set()
 
 # --- DATA MODELS ---
 class ChatRequest(BaseModel):
@@ -62,6 +66,10 @@ class LeadNoteRequest(BaseModel):
 
 class LeadStatusRequest(BaseModel):
     status: str
+
+class BlockIPRequest(BaseModel):
+    ip: str
+    secret_key: str
 
 # --- AGENT PERSONAS ---
 DEFAULT_AGENTS = {
@@ -120,7 +128,11 @@ def get_clinic_info(clinic_id: str):
     }
 
 @app.post("/chat")
-def chat_endpoint(req: ChatRequest):
+def chat_endpoint(req: ChatRequest, request: Request):
+    client_ip = request.client.host if request.client else "Unknown"
+    if client_ip in BLOCKED_IPS:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     agent = AGENTS.get(req.clinic_id, AGENTS.get("lemon-main"))
     
     # Log user message
@@ -131,6 +143,10 @@ def chat_endpoint(req: ChatRequest):
     if req.clinic_id not in LIVE_SESSIONS:
         LIVE_SESSIONS[req.clinic_id] = {}
     LIVE_SESSIONS[req.clinic_id][req.session_id] = datetime.now()
+
+    # Store IP for this session
+    if req.session_id not in SESSION_METADATA:
+        SESSION_METADATA[req.session_id] = {"ip": client_ip}
 
     if req.session_id not in CHAT_LOGS[req.clinic_id]:
         CHAT_LOGS[req.clinic_id][req.session_id] = []
@@ -220,10 +236,22 @@ def get_chat_history(clinic_id: str, key: str):
     
     raw_history = CHAT_LOGS.get(clinic_id, {})
     # Transform list of messages into object with metadata
+    # Include IP address in the response
     return {
-        sid: {"messages": msgs, "sentiment": analyze_sentiment(msgs)}
+        sid: {
+            "messages": msgs, 
+            "sentiment": analyze_sentiment(msgs),
+            "ip": SESSION_METADATA.get(sid, {}).get("ip", "Unknown")
+        }
         for sid, msgs in raw_history.items()
     }
+
+@app.post("/admin/block_ip")
+def block_ip(req: BlockIPRequest):
+    if req.secret_key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    BLOCKED_IPS.add(req.ip)
+    return {"status": "blocked", "ip": req.ip}
 
 @app.post("/heartbeat")
 def heartbeat(req: HeartbeatRequest):
