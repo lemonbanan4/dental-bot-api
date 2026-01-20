@@ -28,6 +28,10 @@ CHAT_LOGS = {}
 LIVE_SESSIONS = {}
 # In-memory storage for leads
 LEADS = {}
+# In-memory storage for typing status
+SESSION_TYPING = {}
+# In-memory storage for admin message queue
+MESSAGE_QUEUE = {}
 # In-memory storage for session metadata (IPs)
 SESSION_METADATA = {}
 # In-memory blocklist
@@ -73,6 +77,16 @@ class BlockIPRequest(BaseModel):
 
 class SessionTagRequest(BaseModel):
     tag: str
+    secret_key: str
+
+class TypingRequest(BaseModel):
+    clinic_id: str
+    session_id: str
+
+class AdminMessageRequest(BaseModel):
+    clinic_id: str
+    session_id: str
+    message: str
     secret_key: str
 
 # --- AGENT PERSONAS ---
@@ -287,12 +301,62 @@ def block_ip(req: BlockIPRequest):
     BLOCKED_IPS.add(req.ip)
     return {"status": "blocked", "ip": req.ip}
 
+@app.post("/typing")
+def report_typing(req: TypingRequest):
+    if req.clinic_id not in SESSION_TYPING:
+        SESSION_TYPING[req.clinic_id] = {}
+    SESSION_TYPING[req.clinic_id][req.session_id] = datetime.now()
+    return {"status": "ok"}
+
+@app.get("/admin/typing_status/{clinic_id}")
+def get_typing_status(clinic_id: str, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    now = datetime.now()
+    typing_sessions = []
+    if clinic_id in SESSION_TYPING:
+        for sid, ts in SESSION_TYPING[clinic_id].items():
+            # Consider typing if updated in last 3 seconds
+            if now - ts < timedelta(seconds=3):
+                typing_sessions.append(sid)
+    return {"typing_sessions": typing_sessions}
+
+@app.post("/admin/message")
+def send_admin_message(req: AdminMessageRequest):
+    if req.secret_key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    # Log to history
+    if req.clinic_id not in CHAT_LOGS: CHAT_LOGS[req.clinic_id] = {}
+    if req.session_id not in CHAT_LOGS[req.clinic_id]: CHAT_LOGS[req.clinic_id][req.session_id] = []
+    
+    CHAT_LOGS[req.clinic_id][req.session_id].append({
+        "role": "assistant", 
+        "content": req.message, 
+        "timestamp": datetime.now().isoformat()
+    })
+
+    # Queue for widget
+    if req.clinic_id not in MESSAGE_QUEUE: MESSAGE_QUEUE[req.clinic_id] = {}
+    if req.session_id not in MESSAGE_QUEUE[req.clinic_id]: MESSAGE_QUEUE[req.clinic_id][req.session_id] = []
+    MESSAGE_QUEUE[req.clinic_id][req.session_id].append(req.message)
+    
+    return {"status": "sent"}
+
 @app.post("/heartbeat")
 def heartbeat(req: HeartbeatRequest):
     if req.clinic_id not in LIVE_SESSIONS:
         LIVE_SESSIONS[req.clinic_id] = {}
     LIVE_SESSIONS[req.clinic_id][req.session_id] = datetime.now()
-    return {"status": "ok"}
+    
+    # Return queued messages
+    messages = []
+    if req.clinic_id in MESSAGE_QUEUE and req.session_id in MESSAGE_QUEUE[req.clinic_id]:
+        messages = MESSAGE_QUEUE[req.clinic_id][req.session_id]
+        MESSAGE_QUEUE[req.clinic_id][req.session_id] = [] # Clear queue
+        
+    return {"status": "ok", "messages": messages}
 
 @app.get("/admin/live_visitors")
 def get_live_visitors(key: str):
