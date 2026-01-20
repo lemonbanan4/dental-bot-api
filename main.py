@@ -1,5 +1,6 @@
 import os
 from typing import Optional, Dict, Any
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,6 +19,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# In-memory storage for chat history (for demo purposes)
+CHAT_LOGS = {}
 
 # --- DATA MODELS ---
 class ChatRequest(BaseModel):
@@ -98,6 +102,14 @@ def get_clinic_info(clinic_id: str):
 def chat_endpoint(req: ChatRequest):
     agent = AGENTS.get(req.clinic_id, AGENTS.get("lemon-main"))
     
+    # Log user message
+    if req.clinic_id not in CHAT_LOGS:
+        CHAT_LOGS[req.clinic_id] = {}
+    if req.session_id not in CHAT_LOGS[req.clinic_id]:
+        CHAT_LOGS[req.clinic_id][req.session_id] = []
+    
+    CHAT_LOGS[req.clinic_id][req.session_id].append({"role": "user", "content": req.message, "timestamp": datetime.now().isoformat()})
+    
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return {
@@ -117,6 +129,10 @@ def chat_endpoint(req: ChatRequest):
             max_tokens=250
         )
         reply = completion.choices[0].message.content
+        
+        # Log assistant reply
+        CHAT_LOGS[req.clinic_id][req.session_id].append({"role": "assistant", "content": reply, "timestamp": datetime.now().isoformat()})
+        
         return {
             "reply": reply,
             "booking_url": agent["booking_url"]
@@ -144,6 +160,12 @@ def update_agent_prompt(req: PromptUpdateRequest):
         AGENTS[req.clinic_id]["prompt"] = req.prompt
         return {"status": "updated", "agent": AGENTS[req.clinic_id]["name"]}
     raise HTTPException(status_code=404, detail="Agent not found")
+
+@app.get("/admin/history/{clinic_id}")
+def get_chat_history(clinic_id: str, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return CHAT_LOGS.get(clinic_id, {})
 
 @app.post("/leads")
 def submit_lead(req: LeadRequest):
