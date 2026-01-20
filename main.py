@@ -197,7 +197,13 @@ def get_clinic_info(clinic_id: str):
 
 @app.post("/chat")
 def chat_endpoint(req: ChatRequest, request: Request):
-    client_ip = request.client.host if request.client else "Unknown"
+    # Handle Render/Proxy IP headers
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        client_ip = forwarded.split(",")[0]
+    else:
+        client_ip = request.client.host if request.client else "Unknown"
+
     if client_ip in BLOCKED_IPS:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -595,7 +601,13 @@ def update_lead_status(clinic_id: str, lead_id: str, req: LeadStatusRequest, key
 
 @app.post("/leads")
 def submit_lead(req: LeadRequest, request: Request):
-    client_ip = request.client.host if request.client else "Unknown"
+    # Handle Render/Proxy IP headers
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        client_ip = forwarded.split(",")[0]
+    else:
+        client_ip = request.client.host if request.client else "Unknown"
+
     if req.clinic_id not in LEADS:
         LEADS[req.clinic_id] = []
     lead_data = req.model_dump()
