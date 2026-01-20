@@ -35,6 +35,11 @@ class LeadRequest(BaseModel):
     message: Optional[str] = None
     source: Optional[str] = None
 
+class PromptUpdateRequest(BaseModel):
+    clinic_id: str
+    prompt: str
+    secret_key: str
+
 # --- AGENT PERSONAS ---
 AGENTS = {
     "lemon-main": {
@@ -119,6 +124,26 @@ def chat_endpoint(req: ChatRequest):
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/admin/prompt/{clinic_id}")
+def get_agent_prompt(clinic_id: str, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    agent = AGENTS.get(clinic_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return {"prompt": agent["prompt"]}
+
+@app.post("/admin/prompt")
+def update_agent_prompt(req: PromptUpdateRequest):
+    if req.secret_key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    if req.clinic_id in AGENTS:
+        AGENTS[req.clinic_id]["prompt"] = req.prompt
+        return {"status": "updated", "agent": AGENTS[req.clinic_id]["name"]}
+    raise HTTPException(status_code=404, detail="Agent not found")
 
 @app.post("/leads")
 def submit_lead(req: LeadRequest):
