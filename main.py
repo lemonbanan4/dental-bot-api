@@ -57,6 +57,9 @@ class HeartbeatRequest(BaseModel):
 class LeadReadRequest(BaseModel):
     read: bool
 
+class LeadNoteRequest(BaseModel):
+    note: str
+
 # --- AGENT PERSONAS ---
 DEFAULT_AGENTS = {
     "lemon-main": {
@@ -266,6 +269,19 @@ def update_lead_read_status(clinic_id: str, lead_id: str, req: LeadReadRequest, 
             if lead.get("id") == lead_id:
                 lead["read"] = req.read
                 return {"status": "updated", "read": req.read}
+            
+    raise HTTPException(status_code=404, detail="Lead not found")
+
+@app.put("/admin/leads/{clinic_id}/{lead_id}/note")
+def update_lead_note(clinic_id: str, lead_id: str, req: LeadNoteRequest, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    if clinic_id in LEADS:
+        for lead in LEADS[clinic_id]:
+            if lead.get("id") == lead_id:
+                lead["note"] = req.note
+                return {"status": "updated", "note": req.note}
             
     raise HTTPException(status_code=404, detail="Lead not found")
 
