@@ -167,6 +167,15 @@ def get_chat_history(clinic_id: str, key: str):
         raise HTTPException(status_code=401, detail="Unauthorized")
     return CHAT_LOGS.get(clinic_id, {})
 
+@app.delete("/admin/history/{clinic_id}/{session_id}")
+def delete_chat_session(clinic_id: str, session_id: str, key: str):
+    if key != "lemon-secret":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if clinic_id in CHAT_LOGS and session_id in CHAT_LOGS[clinic_id]:
+        del CHAT_LOGS[clinic_id][session_id]
+        return {"status": "deleted"}
+    raise HTTPException(status_code=404, detail="Session not found")
+
 @app.post("/leads")
 def submit_lead(req: LeadRequest):
     # Here you would save to a database or send an email
