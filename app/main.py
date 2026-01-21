@@ -506,6 +506,77 @@ def get_live_visitors(key: str):
     return {"live_visitors": active_count}
 
 @app.delete("/admin/history/{clinic_id}/{session_id}")
+def get_typing_status(clinic_id: str, key: str):
+    if key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    now = datetime.now()
+    typing_sessions = []
+    if clinic_id in SESSION_TYPING:
+        for sid, ts in SESSION_TYPING[clinic_id].items():
+            # Consider typing if updated in last 3 seconds
+            if now - ts < timedelta(seconds=3):
+                typing_sessions.append(sid)
+    return {"typing_sessions": typing_sessions}
+
+@app.post("/admin/message")
+def send_admin_message(req: AdminMessageRequest):
+    if req.secret_key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    # Log to history
+    if req.clinic_id not in CHAT_LOGS: CHAT_LOGS[req.clinic_id] = {}
+    if req.session_id not in CHAT_LOGS[req.clinic_id]: CHAT_LOGS[req.clinic_id][req.session_id] = []
+    
+    CHAT_LOGS[req.clinic_id][req.session_id].append({
+        "role": "assistant", 
+        "content": req.message, 
+        "timestamp": datetime.now().isoformat()
+    })
+
+    # Queue for widget
+    if req.clinic_id not in MESSAGE_QUEUE: MESSAGE_QUEUE[req.clinic_id] = {}
+    if req.session_id not in MESSAGE_QUEUE[req.clinic_id]: MESSAGE_QUEUE[req.clinic_id][req.session_id] = []
+    MESSAGE_QUEUE[req.clinic_id][req.session_id].append(req.message)
+    
+    return {"status": "sent"}
+
+@app.post("/heartbeat")
+def heartbeat(req: HeartbeatRequest):
+    if req.clinic_id not in LIVE_SESSIONS:
+        LIVE_SESSIONS[req.clinic_id] = {}
+    LIVE_SESSIONS[req.clinic_id][req.session_id] = datetime.now()
+    
+    # Return queued messages
+    messages = []
+    if req.clinic_id in MESSAGE_QUEUE and req.session_id in MESSAGE_QUEUE[req.clinic_id]:
+        messages = MESSAGE_QUEUE[req.clinic_id][req.session_id]
+        MESSAGE_QUEUE[req.clinic_id][req.session_id] = [] # Clear queue
+        
+    return {"status": "ok", "messages": messages}
+
+@app.get("/admin/live_visitors")
+def get_live_visitors(key: str):
+    if key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    now = datetime.now()
+    active_count = 0
+    # Clean up old sessions while we're at it
+    for clinic_id, sessions in list(LIVE_SESSIONS.items()):
+        for session_id, last_seen in list(sessions.items()):
+            # Consider active if seen in last 2 minutes
+            if now - last_seen < timedelta(minutes=2):
+                active_count += 1
+            else:
+                # Clean up inactive session
+                del LIVE_SESSIONS[clinic_id][session_id]
+        if not LIVE_SESSIONS[clinic_id]:
+            del LIVE_SESSIONS[clinic_id]
+
+    return {"live_visitors": active_count}
+
+@app.delete("/admin/history/{clinic_id}/{session_id}")
 def delete_chat_session(clinic_id: str, session_id: str, key: str):
     if key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
