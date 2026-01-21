@@ -181,6 +181,10 @@ def root():
     print("Root endpoint hit - DentalBot API")
     return {"status": "ok", "service": "DentalBot API"}
 
+@app.on_event("startup")
+async def startup_event():
+    print("DentalBot API - Admin Endpoints Loaded")
+
 @app.get("/public/clinic/{clinic_id}")
 def get_clinic_info(clinic_id: str):
     # Return agent info so the widget can adapt (if not overridden by HTML)
