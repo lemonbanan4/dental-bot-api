@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from typing import Optional
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.models import LeadRequest, LeadResponse
 from app.supabase_db import get_clinic_by_public_id, create_lead, get_or_create_session
 from app.rate_limit import limit_leads
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/lead", tags=["lead"])
 router2 = APIRouter(prefix="/leads", tags=["lead"])
 
 
-def _handle_lead(req: LeadRequest, bg: BackgroundTasks | None = None):
+def _handle_lead(req: LeadRequest, bg: Optional[BackgroundTasks] = None):
     clinic = get_clinic_by_public_id(req.clinic_id)
     if not clinic:
         raise HTTPException(status_code=404, detail="Clinic not found")
@@ -48,10 +49,11 @@ def _handle_lead(req: LeadRequest, bg: BackgroundTasks | None = None):
 
 
 @router.post("", response_model=LeadResponse)
-def lead(req: LeadRequest, bg: BackgroundTasks, _rl=Depends(limit_leads())):
+async def lead(req: LeadRequest, bg: BackgroundTasks):
     return _handle_lead(req, bg)
 
 
 @router2.post("", response_model=LeadResponse)
-def lead_alias(req: LeadRequest, bg: BackgroundTasks, _rl=Depends(limit_leads())):
+async def lead_alias(req: LeadRequest, bg: BackgroundTasks):
     return _handle_lead(req, bg)
+

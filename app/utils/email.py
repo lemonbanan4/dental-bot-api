@@ -4,6 +4,7 @@ from email.message import EmailMessage
 from app.config import settings
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import os
+from typing import Optional
 
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', 'templates')
@@ -30,7 +31,7 @@ def _send_message(msg: EmailMessage) -> bool:
         return False
 
 
-def send_lead_email(to_email: str, clinic_name: str, lead: dict, logo_url: str | None = None, theme: str | None = None):
+def send_lead_email(to_email: str, clinic_name: str, lead: dict, logo_url: Optional[str] = None, theme: Optional[str] = None):
     """Send a CRM-style lead notification email (HTML + plain-text fallback)."""
     if not to_email:
         return False
@@ -47,7 +48,7 @@ def send_lead_email(to_email: str, clinic_name: str, lead: dict, logo_url: str |
 
     return _send_message(msg)
 
-def send_onboarding_email(to_email: str, clinic_name: str, snippet: str, logo_url: str | None = None, preview_text: str | None = None):
+def send_onboarding_email(to_email: str, clinic_name: str, snippet: str, logo_url: Optional[str] = None, preview_text: Optional[str] = None):
     if not to_email:
         return False
 

@@ -48,10 +48,10 @@ def get_clinic_by_public_id(public_clinic_id: str) -> Optional[dict]:
 def get_or_create_session(
         clinic_uuid: str,
         session_key: str,
-        user_locale: str | None,
-        page_url: str | None,
-        user_agent: str | None,
-        ip_hash: str | None,
+        user_locale: Optional[str],
+        page_url: Optional[str],
+        user_agent: Optional[str],
+        ip_hash: Optional[str],
 ) -> dict:
     sb = get_supabase_client()
     # Try fetch
@@ -97,11 +97,11 @@ def fetch_recent_messages(session_uuid: str, limit: int = 10) -> list[dict]:
     
 def create_lead(
         clinic_uuid: str,
-        session_uuid: str | None,
-        name: str | None,
-        phone: str | None,
-        email: str | None,
-        message: str | None,
+        session_uuid: Optional[str],
+        name: Optional[str],
+        phone: Optional[str],
+        email: Optional[str],
+        message: Optional[str],
 ) -> dict:
     sb = get_supabase_client()
     res = sb.table("leads").insert({

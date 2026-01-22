@@ -252,6 +252,8 @@
       // expose ui/launcher for static hook usage
       window.DentalBotWidget._launcher = ui.launcher;
       window.DentalBotWidget._ui = ui;
+      // Store opts globally for submitLead to access
+      window.DentalBotWidget._opts = opts;
       // apply theme if provided
       if (opts.theme) {
         try { document.documentElement.style.setProperty('--dbot-accent', opts.theme); } catch (e) {}
@@ -310,6 +312,14 @@
     const message = backdrop.querySelector('.dbot-lead-msg').value.trim() || null;
     const status = backdrop.querySelector('.dbot-lead-status');
     if (status) status.textContent = 'Sending…';
+    
+    // Get opts from global widget state
+    const opts = window.DentalBotWidget._opts || {};
+    if (!opts.apiUrl || !opts.clinicId) {
+      if (status) status.textContent = 'Configuration error: API URL or Clinic ID missing';
+      return;
+    }
+    
     try {
       const res = await fetch(`${opts.apiUrl}/leads`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
