@@ -19,7 +19,12 @@ DEMO_CLINICS = {
 }
 
 def _handle_lead(req: LeadRequest, bg: Optional[BackgroundTasks] = None):
-    clinic = get_clinic_by_public_id(req.clinic_id)
+    clinic = None
+    try:
+        clinic = get_clinic_by_public_id(req.clinic_id)
+    except Exception as e:
+        # Supabase not configured or connection failed - use demo data
+        print(f"Supabase lookup failed: {e}")
     
     # Fallback to demo clinics if not found in Supabase
     if not clinic and req.clinic_id in DEMO_CLINICS:

@@ -58,7 +58,12 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
     limit(request, max_per_minute=90)
 
     # Try Supabase first, then fallback to demo data
-    clinic = get_clinic_by_public_id(req.clinic_id)
+    clinic = None
+    try:
+        clinic = get_clinic_by_public_id(req.clinic_id)
+    except Exception as e:
+        # Supabase not configured or connection failed - use demo data
+        print(f"Supabase lookup failed: {e}")
     
     # If not in Supabase, try demo clinics (for backward compatibility)
     if not clinic and req.clinic_id in DEMO_CLINICS:
