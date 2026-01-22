@@ -4,6 +4,9 @@ This replaces the broken main.py with extensive duplication.
 """
 import os
 import redis.asyncio as redis
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -104,10 +107,6 @@ async def root():
 # ============================================================================
 # These endpoints support the old widget.js API format
 # They're kept for backward compatibility with deployed widgets
-
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
 
 # In-memory storage for backward compat endpoints
 _OLD_API_CHAT_LOGS: Dict[str, list] = {}
