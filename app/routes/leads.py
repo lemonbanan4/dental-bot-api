@@ -15,6 +15,11 @@ router2 = APIRouter(prefix="/leads", tags=["lead"])
 # Fallback clinic data (same as in chat.py)
 DEMO_CLINICS = {
     "lemon-main": {"id": "demo-lemon-main", "clinic_id": "lemon-main", "clinic_name": "Lemon Techno"},
+    "dental-demo": {"id": "demo-dental", "clinic_id": "dental-demo", "clinic_name": "Dental Demo"},
+    "beauty-demo": {"id": "demo-beauty", "clinic_id": "beauty-demo", "clinic_name": "Beauty Demo"},
+    "realestate-demo": {"id": "demo-realestate", "clinic_id": "realestate-demo", "clinic_name": "Real Estate Demo"},
+    "retail-demo": {"id": "demo-retail", "clinic_id": "retail-demo", "clinic_name": "Retail Demo"},
+    "support-demo": {"id": "demo-support", "clinic_id": "support-demo", "clinic_name": "Support Demo"},
     "smile-city-001": {"id": "demo-smile-city", "clinic_id": "smile-city-001", "clinic_name": "Smile City Dental"},
 }
 
