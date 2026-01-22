@@ -19,12 +19,51 @@ from app.supabase_db import (
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+# Fallback clinic data for demo/testing
+DEMO_CLINICS = {
+    "lemon-main": {
+        "id": "demo-lemon-main",
+        "clinic_id": "lemon-main",
+        "clinic_name": "Lemon Techno",
+        "location": "Demo Location",
+        "opening_hours": "9 AM - 6 PM",
+        "services": ["Consultation", "AI Support"],
+        "insurance": ["All"],
+        "price_ranges": {"consultation": "Free"},
+        "languages": ["English"],
+        "booking_url": "https://calendly.com/lemon-techno/demo",
+        "emergency_instructions": "Contact us immediately at +1-800-LEMON",
+        "contact_phone": "+1-800-LEMON",
+        "contact_email": "support@lemon-techno.org",
+    },
+    "smile-city-001": {
+        "id": "demo-smile-city",
+        "clinic_id": "smile-city-001",
+        "clinic_name": "Smile City Dental",
+        "location": "123 Main St",
+        "opening_hours": "9 AM - 6 PM",
+        "services": ["Cleaning", "Whitening", "Implants"],
+        "insurance": ["Dental Plus", "SmileCare"],
+        "price_ranges": {"cleaning": "$100-150", "whitening": "$200-400"},
+        "languages": ["English", "Spanish"],
+        "booking_url": "https://booking.smile-city.com",
+        "emergency_instructions": "Call emergency line: 911",
+        "contact_phone": "+1-555-SMILE",
+        "contact_email": "hello@smile-city.com",
+    },
+}
+
 @router.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest, request: Request, stream: bool = False):
     limit(request, max_per_minute=90)
 
-    # ✅ Supabase clinic lookup (not app.db)
+    # Try Supabase first, then fallback to demo data
     clinic = get_clinic_by_public_id(req.clinic_id)
+    
+    # If not in Supabase, try demo clinics (for backward compatibility)
+    if not clinic and req.clinic_id in DEMO_CLINICS:
+        clinic = DEMO_CLINICS[req.clinic_id]
+    
     if not clinic:
         raise HTTPException(status_code=404, detail="Clinic not found")
 
@@ -40,17 +79,32 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
     page_url = (req.metadata or {}).get("page_url") if req.metadata else None
     user_agent = request.headers.get("user-agent")
 
-    session = get_or_create_session(
-        clinic_uuid=clinic["id"],   # internal UUID
-        session_key=session_id,
-        user_locale=req.locale_hint,
-        page_url=page_url,
-        user_agent=user_agent,
-        ip_hash=ip_h,
-    )
+    # Try to use Supabase session management if clinic is in database
+    if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+        try:
+            session = get_or_create_session(
+                clinic_uuid=clinic["id"],
+                session_key=session_id,
+                user_locale=req.locale_hint,
+                page_url=page_url,
+                user_agent=user_agent,
+                ip_hash=ip_h,
+            )
+        except Exception as e:
+            # Fallback if Supabase fails
+            print(f"Warning: Supabase session creation failed: {e}. Using in-memory fallback.")
+            session = {"id": session_id, "session_key": session_id}
+    else:
+        # For demo clinics, use in-memory session
+        session = {"id": session_id, "session_key": session_id}
 
-    # ✅ log user message
-    insert_message(session["id"], "user", user_text)
+    # Try to log message to Supabase if clinic is in database
+    if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+        try:
+            insert_message(session["id"], "user", user_text)
+        except Exception as e:
+            # Fallback if Supabase fails
+            print(f"Warning: Supabase message logging failed: {e}")
 
     # Guardrails
     if is_emergency(user_text):
@@ -59,7 +113,11 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
             f"If you cannot reach the clinic quickly, seek urgent medical care.\n\n"
             f"This assistant provides general information and does not replace professional medical advice."
         )
-        insert_message(session["id"], "assistant", reply)
+        if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+            try:
+                insert_message(session["id"], "assistant", reply)
+            except Exception:
+                pass
         return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="emergency")
 
     if is_symptom_or_diagnosis_request(user_text):
@@ -70,12 +128,25 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
             f"Or contact the clinic: {clinic.get('contact_phone')} / {clinic.get('contact_email')}\n\n"
             f"This assistant provides general information and does not replace professional medical advice."
         )
-        insert_message(session["id"], "assistant", reply)
+        if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+            try:
+                insert_message(session["id"], "assistant", reply)
+            except Exception:
+                pass
         return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="medical_advice_request")
 
     # ✅ memory: last N messages
-    history = fetch_recent_messages(session["id"], limit=settings.chat_memory_messages)
-    llm_messages = [m for m in history if m["role"] in ("user", "assistant")]
+    if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+        try:
+            history = fetch_recent_messages(session["id"], limit=settings.chat_memory_messages)
+            llm_messages = [m for m in history if m["role"] in ("user", "assistant")]
+        except Exception as e:
+            # Fallback if Supabase fails
+            print(f"Warning: Supabase fetch failed: {e}")
+            llm_messages = [{"role": "user", "content": user_text}]
+    else:
+        # For demo clinics, just use current message
+        llm_messages = [{"role": "user", "content": user_text}]
 
     system = BASE_SYSTEM + "\n\n" + clinic_context_block(clinic)
 
@@ -86,7 +157,11 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
             raise HTTPException(status_code=502, detail=f"LLM error: {str(e)}")
 
         # ✅ log assistant message
-        insert_message(session["id"], "assistant", llm_reply)
+        if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+            try:
+                insert_message(session["id"], "assistant", llm_reply)
+            except Exception as e:
+                print(f"Warning: Supabase message logging failed: {e}")
 
         return ChatResponse(reply=llm_reply, session_id=session_id, handoff=False)
 
@@ -101,7 +176,11 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
 
             full = "".join(parts)
             # log the finished assistant message
-            insert_message(session["id"], "assistant", full)
+            if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+                try:
+                    insert_message(session["id"], "assistant", full)
+                except Exception as e:
+                    print(f"Warning: Supabase message logging failed: {e}")
 
             # final metadata line
             meta = {"done": True}

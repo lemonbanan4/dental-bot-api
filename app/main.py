@@ -99,6 +99,88 @@ async def root():
         "docs": "/docs",
     }
 
+# ============================================================================
+# BACKWARD COMPATIBILITY ENDPOINTS (for old widget.js versions)
+# ============================================================================
+# These endpoints support the old widget.js API format
+# They're kept for backward compatibility with deployed widgets
+
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
+
+# In-memory storage for backward compat endpoints
+_OLD_API_CHAT_LOGS: Dict[str, list] = {}
+_OLD_API_LIVE_SESSIONS: Dict[str, Dict[str, datetime]] = {}
+_OLD_API_MESSAGE_QUEUE: Dict[str, Dict[str, list]] = {}
+_OLD_API_FEEDBACK_STATS: Dict[str, Dict[str, int]] = {}
+
+class OldChatRequest(BaseModel):
+    """Old widget.js chat request format."""
+    clinic_id: str
+    message: str
+    session_id: str
+    metadata: Optional[Dict[str, Any]] = None
+
+class OldHeartbeatRequest(BaseModel):
+    """Old widget.js heartbeat request format."""
+    clinic_id: str
+    session_id: str
+
+class OldFeedbackRequest(BaseModel):
+    """Old widget.js feedback request format."""
+    clinic_id: str
+    type: str  # 'up' or 'down'
+    message: Optional[str] = None
+
+class OldTypingRequest(BaseModel):
+    """Old widget.js typing indicator format."""
+    clinic_id: str
+    session_id: str
+
+@app.post("/heartbeat")
+async def heartbeat_compat(req: OldHeartbeatRequest):
+    """Backward compatibility heartbeat endpoint.
+    
+    Maintains session alive and returns queued messages.
+    Old widget.js expects this endpoint.
+    """
+    if req.clinic_id not in _OLD_API_LIVE_SESSIONS:
+        _OLD_API_LIVE_SESSIONS[req.clinic_id] = {}
+    _OLD_API_LIVE_SESSIONS[req.clinic_id][req.session_id] = datetime.now()
+    
+    # Return queued messages if any
+    messages = []
+    if req.clinic_id in _OLD_API_MESSAGE_QUEUE and req.session_id in _OLD_API_MESSAGE_QUEUE[req.clinic_id]:
+        messages = _OLD_API_MESSAGE_QUEUE[req.clinic_id][req.session_id]
+        _OLD_API_MESSAGE_QUEUE[req.clinic_id][req.session_id] = []
+        
+    return {"status": "ok", "messages": messages}
+
+@app.post("/typing")
+async def typing_compat(req: OldTypingRequest):
+    """Backward compatibility typing indicator endpoint.
+    
+    Old widget.js sends typing status here.
+    """
+    return {"status": "ok"}
+
+@app.post("/feedback")
+async def feedback_compat(req: OldFeedbackRequest):
+    """Backward compatibility feedback endpoint.
+    
+    Old widget.js sends feedback here.
+    """
+    if req.clinic_id not in _OLD_API_FEEDBACK_STATS:
+        _OLD_API_FEEDBACK_STATS[req.clinic_id] = {"up": 0, "down": 0}
+    
+    if req.type == "up":
+        _OLD_API_FEEDBACK_STATS[req.clinic_id]["up"] += 1
+    elif req.type == "down":
+        _OLD_API_FEEDBACK_STATS[req.clinic_id]["down"] += 1
+        
+    return {"status": "received"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
