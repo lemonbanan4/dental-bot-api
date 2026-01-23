@@ -4,7 +4,7 @@ import json
 from uuid import uuid4
 
 from app.models import ChatRequest, ChatResponse
-from app.prompts import BASE_SYSTEM, clinic_context_block
+from app.prompts import get_system_prompt
 from app.services.llm import chat_completion, chat_completion_stream
 from app.services.guardrails import is_emergency, is_symptom_or_diagnosis_request
 from app.utils.rate_limit import limit
@@ -228,7 +228,7 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
         # For demo clinics, just use current message
         llm_messages = [{"role": "user", "content": user_text}]
 
-    system = BASE_SYSTEM + "\n\n" + clinic_context_block(clinic)
+    system = get_system_prompt(clinic)
 
     if not stream:
         try:
