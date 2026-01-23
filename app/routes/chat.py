@@ -200,34 +200,39 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
             # Fallback if Supabase fails
             print(f"Warning: Supabase message logging failed: {e}")
 
-    # Guardrails
-    if is_emergency(user_text):
-        reply = (
-            f"{clinic.get('emergency_instructions')}\n\n"
-            f"If you cannot reach the clinic quickly, seek urgent medical care.\n\n"
-            f"This assistant provides general information and does not replace professional medical advice."
-        )
-        if is_real_clinic:
-            try:
-                insert_message(session["id"], "assistant", reply)
-            except Exception:
-                pass
-        return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="emergency")
+    # --- GUARDRAILS (Medical Only) ---
+    # Determine if this is a medical context to avoid triggering medical warnings for retail/real estate
+    name_lower = clinic.get("clinic_name", "").lower()
+    is_medical_context = any(x in name_lower for x in ['dental', 'smile', 'ortho', 'tooth', 'dentist', 'medical', 'doctor', 'clinic', 'beauty', 'aesthetic', 'skin', 'derma'])
 
-    if is_symptom_or_diagnosis_request(user_text):
-        reply = (
-            f"I can't provide medical advice or diagnose symptoms. "
-            f"The safest step is to book an appointment so a clinician can assess you.\n\n"
-            f"You can book here: {clinic.get('booking_url')}\n"
-            f"Or contact the clinic: {clinic.get('contact_phone')} / {clinic.get('contact_email')}\n\n"
-            f"This assistant provides general information and does not replace professional medical advice."
-        )
-        if is_real_clinic:
-            try:
-                insert_message(session["id"], "assistant", reply)
-            except Exception:
-                pass
-        return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="medical_advice_request")
+    if is_medical_context:
+        if is_emergency(user_text):
+            reply = (
+                f"{clinic.get('emergency_instructions')}\n\n"
+                f"If you cannot reach the clinic quickly, seek urgent medical care.\n\n"
+                f"This assistant provides general information and does not replace professional medical advice."
+            )
+            if is_real_clinic:
+                try:
+                    insert_message(session["id"], "assistant", reply)
+                except Exception:
+                    pass
+            return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="emergency")
+
+        if is_symptom_or_diagnosis_request(user_text):
+            reply = (
+                f"I can't provide medical advice or diagnose symptoms. "
+                f"The safest step is to book an appointment so a clinician can assess you.\n\n"
+                f"You can book here: {clinic.get('booking_url')}\n"
+                f"Or contact the clinic: {clinic.get('contact_phone')} / {clinic.get('contact_email')}\n\n"
+                f"This assistant provides general information and does not replace professional medical advice."
+            )
+            if is_real_clinic:
+                try:
+                    insert_message(session["id"], "assistant", reply)
+                except Exception:
+                    pass
+            return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="medical_advice_request")
 
     # ✅ memory: last N messages
     if is_real_clinic:

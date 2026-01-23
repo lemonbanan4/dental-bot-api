@@ -19,6 +19,9 @@ def get_system_prompt(clinic: dict) -> str:
     elif any(x in name_lower for x in ['support', 'tech', 'software', 'lemon']):
         specialization = "technology company"
 
+    # Debug log to verify specialization detection
+    print(f"[PROMPT DEBUG] Clinic: {name} | Type: {specialization} | Medical: {is_medical}")
+
     prompt = f"""You are a helpful and professional AI assistant for {name}, a {specialization}.
 Your goal is to assist visitors with information about services, booking, and general inquiries.
 
