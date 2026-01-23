@@ -1,22 +1,19 @@
-import re
-
-EMERGENCY_PATTERNS = [
-    r"can't breathe", r"trouble breathing", r"swelling.*throat",
-    r"uncontrolled bleeding", r"severe bleeding",
-    r"fainting", r"passed out", 
+EMERGENCY_KEYWORDS = [
+    "bleeding", "choking", "unconscious", "heart attack", "stroke", 
+    "breathing", "ambulance", "911", "emergency", "severe pain", "trauma"
 ]
-SYMPTOM_PATTERNS = [
-    r"toothache", r"pain", r"swelling", r"fever", r"infection",
-    r"pus", r"bleeding gums", r"broken tooth", r"abscess",
+
+MEDICAL_KEYWORDS = [
+    "diagnose", "symptom", "treatment", "medicine", "prescription", 
+    "infection", "swelling", "pain", "hurt", "ache", "disease"
 ]
 
 def is_emergency(text: str) -> bool:
-    t = text.lower()
-    return any(re.search(p, t) for p in EMERGENCY_PATTERNS)
+    """Check if the text contains emergency keywords."""
+    text_lower = text.lower()
+    return any(keyword in text_lower for keyword in EMERGENCY_KEYWORDS)
 
 def is_symptom_or_diagnosis_request(text: str) -> bool:
-    t = text.lower()
-    # crude but effective for MVP
-    if "should i" in t or "what should" in t or "do i need" in t:
-        return True
-    return any(re.search(p, t) for p in SYMPTOM_PATTERNS)
+    """Check if the text is asking for medical advice/diagnosis."""
+    text_lower = text.lower()
+    return any(keyword in text_lower for keyword in MEDICAL_KEYWORDS)

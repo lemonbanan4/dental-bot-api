@@ -1,1 +1,1 @@
-# Makes the services directory a package.
+# Services package
