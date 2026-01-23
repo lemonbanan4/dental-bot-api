@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from typing import Dict, Any
 import json
 from uuid import uuid4
 
@@ -147,6 +148,13 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
     if not clinic:
         raise HTTPException(status_code=404, detail="Clinic not found")
 
+    system = get_system_prompt(clinic)
+
+    # --- DEBUG LOGGING ---
+    print(f"[CHAT_DEBUG] Clinic ID: {req.clinic_id}, Clinic Name: {clinic.get('clinic_name')}")
+    print(f"[CHAT_DEBUG] Generated System Prompt: {system[:300]}...") # Log first 300 chars
+    # ---------------------
+
     session_id = req.session_id or str(uuid4())
 
     user_text = req.message.strip()
@@ -159,11 +167,17 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
     page_url = (req.metadata or {}).get("page_url") if req.metadata else None
     user_agent = request.headers.get("user-agent")
 
+    # Determine if this is a real clinic (using Supabase) or a demo clinic (in-memory)
+    clinic_db_id = clinic.get("id")
+    is_real_clinic = False
+    if clinic_db_id and isinstance(clinic_db_id, str) and not clinic_db_id.startswith("demo-"):
+        is_real_clinic = True
+
     # Try to use Supabase session management if clinic is in database
-    if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+    if is_real_clinic and isinstance(clinic_db_id, str):
         try:
             session = get_or_create_session(
-                clinic_uuid=clinic["id"],
+                clinic_uuid=clinic_db_id,
                 session_key=session_id,
                 user_locale=req.locale_hint,
                 page_url=page_url,
@@ -179,7 +193,7 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
         session = {"id": session_id, "session_key": session_id}
 
     # Try to log message to Supabase if clinic is in database
-    if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+    if is_real_clinic:
         try:
             insert_message(session["id"], "user", user_text)
         except Exception as e:
@@ -193,7 +207,7 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
             f"If you cannot reach the clinic quickly, seek urgent medical care.\n\n"
             f"This assistant provides general information and does not replace professional medical advice."
         )
-        if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+        if is_real_clinic:
             try:
                 insert_message(session["id"], "assistant", reply)
             except Exception:
@@ -208,7 +222,7 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
             f"Or contact the clinic: {clinic.get('contact_phone')} / {clinic.get('contact_email')}\n\n"
             f"This assistant provides general information and does not replace professional medical advice."
         )
-        if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+        if is_real_clinic:
             try:
                 insert_message(session["id"], "assistant", reply)
             except Exception:
@@ -216,7 +230,7 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
         return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="medical_advice_request")
 
     # ✅ memory: last N messages
-    if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+    if is_real_clinic:
         try:
             history = fetch_recent_messages(session["id"], limit=settings.chat_memory_messages)
             llm_messages = [m for m in history if m["role"] in ("user", "assistant")]
@@ -228,8 +242,6 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
         # For demo clinics, just use current message
         llm_messages = [{"role": "user", "content": user_text}]
 
-    system = get_system_prompt(clinic)
-
     if not stream:
         try:
             llm_reply = await chat_completion(system=system, messages=llm_messages)
@@ -237,7 +249,7 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
             raise HTTPException(status_code=502, detail=f"LLM error: {str(e)}")
 
         # ✅ log assistant message
-        if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+        if is_real_clinic:
             try:
                 insert_message(session["id"], "assistant", llm_reply)
             except Exception as e:
@@ -256,14 +268,14 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
 
             full = "".join(parts)
             # log the finished assistant message
-            if clinic.get("id") and not clinic.get("id").startswith("demo-"):
+            if is_real_clinic:
                 try:
                     insert_message(session["id"], "assistant", full)
                 except Exception as e:
                     print(f"Warning: Supabase message logging failed: {e}")
 
             # final metadata line
-            meta = {"done": True}
+            meta: Dict[str, Any] = {"done": True}
             if clinic.get("booking_url"):
                 meta["booking_url"] = clinic.get("booking_url")
             yield (json.dumps(meta) + "\n").encode()
