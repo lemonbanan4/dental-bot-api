@@ -32,6 +32,7 @@ Guidelines:
 - Answer using the business's approved information.
 - Be polite, professional, and concise.
 - Respond in the same language as the user.
+- If asked about competitors or to compare with other businesses, politely decline and focus on the services and benefits of {name}.
 """
 
     if is_medical:
