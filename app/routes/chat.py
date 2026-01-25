@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from typing import Dict, Any
 import json
 from uuid import uuid4
+import time
 
 from app.models import ChatRequest, ChatResponse
 from app.prompts import get_system_prompt
@@ -20,6 +21,21 @@ from app.supabase_db import (
 )
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+def run_with_retry(func, *args, **kwargs):
+    """Executes a function with retries for background tasks."""
+    max_retries = 3
+    delay = 1
+    
+    for i in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            if i == max_retries - 1:
+                print(f"Background task failed after {max_retries} attempts: {e}")
+                return
+            time.sleep(delay)
+            delay *= 2
 
 # Fallback clinic data for demo/testing
 DEMO_CLINICS = {
@@ -196,7 +212,7 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
     # Try to log message to Supabase if clinic is in database
     if is_real_clinic:
         # Log user message in background
-        background_tasks.add_task(insert_message, session["id"], "user", user_text)
+        background_tasks.add_task(run_with_retry, insert_message, session["id"], "user", user_text)
 
     # --- GUARDRAILS (Medical Only) ---
     # Determine if this is a medical context to avoid triggering medical warnings for retail/real estate
@@ -211,7 +227,7 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
                 f"This assistant provides general information and does not replace professional medical advice."
             )
             if is_real_clinic:
-                background_tasks.add_task(insert_message, session["id"], "assistant", reply)
+                background_tasks.add_task(run_with_retry, insert_message, session["id"], "assistant", reply)
             return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="emergency")
 
         if is_symptom_or_diagnosis_request(user_text):
@@ -223,7 +239,7 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
                 f"This assistant provides general information and does not replace professional medical advice."
             )
             if is_real_clinic:
-                background_tasks.add_task(insert_message, session["id"], "assistant", reply)
+                background_tasks.add_task(run_with_retry, insert_message, session["id"], "assistant", reply)
             return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="medical_advice_request")
 
     # --- GUARDRAILS (Competitors) ---
@@ -237,8 +253,8 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
             f"If you have questions about our services, prices, or availability, feel free to ask!"
         )
         if is_real_clinic:
-            background_tasks.add_task(insert_message, session["id"], "assistant", reply)
-            background_tasks.add_task(log_competitor_query, clinic.get("id"), session["id"], user_text, matched_keyword)
+            background_tasks.add_task(run_with_retry, insert_message, session["id"], "assistant", reply)
+            background_tasks.add_task(run_with_retry, log_competitor_query, clinic.get("id"), session["id"], user_text, matched_keyword)
         return ChatResponse(reply=reply, session_id=session_id, handoff=False)
 
     # ✅ memory: last N messages
@@ -262,7 +278,7 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
 
         # ✅ log assistant message
         if is_real_clinic:
-            background_tasks.add_task(insert_message, session["id"], "assistant", llm_reply)
+            background_tasks.add_task(run_with_retry, insert_message, session["id"], "assistant", llm_reply)
 
         return ChatResponse(reply=llm_reply, session_id=session_id, handoff=False)
 
@@ -278,7 +294,7 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
             full = "".join(parts)
             # log the finished assistant message
             if is_real_clinic:
-                background_tasks.add_task(insert_message, session["id"], "assistant", full)
+                background_tasks.add_task(run_with_retry, insert_message, session["id"], "assistant", full)
 
             # final metadata line
             meta: Dict[str, Any] = {"done": True}
