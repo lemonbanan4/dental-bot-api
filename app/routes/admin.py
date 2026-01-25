@@ -1,8 +1,10 @@
+import csv
+import io
 from fastapi import APIRouter, HTTPException, Header, Request
 from typing import Optional
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from app.config import settings
-from app.supabase_db import get_supabase_client, get_competitor_queries, get_feedback_stats, get_feedback_counts
+from app.supabase_db import get_supabase_client, get_competitor_queries, get_feedback_stats, get_feedback_counts, export_feedback_data
 from app.utils.email import send_onboarding_email
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -80,6 +82,44 @@ def list_feedback_counts(
     require_api_key(x_api_key)
     return {"counts": get_feedback_counts(start_date, end_date)}
 
+@router.get("/feedback/export")
+def export_feedback_csv(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    x_api_key: str = Header(default="")
+):
+    require_api_key(x_api_key)
+    
+    data = export_feedback_data(start_date, end_date)
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header
+    writer.writerow(["Date", "Clinic Name", "Clinic ID", "Session ID", "Rating", "Comment"])
+    
+    for row in data:
+        clinic = row.get("clinics") or {}
+        # Handle case where clinic might be None or empty if join failed
+        c_name = clinic.get("clinic_name", "Unknown") if isinstance(clinic, dict) else "Unknown"
+        
+        writer.writerow([
+            row.get("created_at"),
+            c_name,
+            row.get("clinic_id"),
+            row.get("session_id"),
+            row.get("rating"),
+            row.get("comment") or ""
+        ])
+        
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=feedback_export.csv"}
+    )
 
 @router.get('/ui')
 def admin_ui(request: Request, x_api_key: str = Header(default="")):

@@ -175,3 +175,15 @@ def get_feedback_counts(start_date: Optional[str] = None, end_date: Optional[str
         
     res = sb.rpc("get_clinic_feedback_stats", params).execute()
     return res.data or []
+
+def export_feedback_data(start_date: Optional[str] = None, end_date: Optional[str] = None) -> list[dict]:
+    sb = get_supabase_client()
+    query = sb.table("chat_feedback").select("*, clinics(clinic_name, clinic_id)").order("created_at", desc=True)
+    
+    if start_date:
+        query = query.gte("created_at", start_date)
+    if end_date:
+        query = query.lte("created_at", end_date)
+        
+    res = query.limit(5000).execute()
+    return res.data or []
