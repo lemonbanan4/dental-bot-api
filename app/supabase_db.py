@@ -162,3 +162,34 @@ def get_feedback_stats(limit: int = 100) -> list[dict]:
         .execute()
     )
     return res.data or []
+
+def get_feedback_counts() -> list[dict]:
+    sb = get_supabase_client()
+    # Fetch data to aggregate
+    # Note: For very large datasets, consider creating a SQL View or RPC.
+    res = (
+        sb.table("chat_feedback")
+        .select("rating, clinic_id, clinics(clinic_name)")
+        .limit(1000)
+        .execute()
+    )
+    rows = res.data or []
+    
+    stats = {}
+    for row in rows:
+        c_id = row.get("clinic_id")
+        if not c_id:
+            continue
+            
+        if c_id not in stats:
+            c_name = row.get("clinics", {}).get("clinic_name", "Unknown") if row.get("clinics") else "Unknown"
+            stats[c_id] = {"clinic_id": c_id, "clinic_name": c_name, "up": 0, "down": 0, "total": 0}
+        
+        rating = row.get("rating")
+        if rating == "up":
+            stats[c_id]["up"] += 1
+        elif rating == "down":
+            stats[c_id]["down"] += 1
+        stats[c_id]["total"] += 1
+        
+    return list(stats.values())
