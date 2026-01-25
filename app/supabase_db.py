@@ -151,3 +151,14 @@ def insert_feedback(clinic_uuid: str, session_uuid: str, rating: str, comment: O
         "rating": rating,
         "comment": comment,
     }).execute()
+
+def get_feedback_stats(limit: int = 100) -> list[dict]:
+    sb = get_supabase_client()
+    res = (
+        sb.table("chat_feedback")
+        .select("*, clinics(clinic_name, clinic_id)")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return res.data or []

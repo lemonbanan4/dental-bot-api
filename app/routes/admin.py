@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Header, Request
 from fastapi.responses import RedirectResponse
 from app.config import settings
-from app.supabase_db import get_supabase_client, get_competitor_queries
+from app.supabase_db import get_supabase_client, get_competitor_queries, get_feedback_stats
 from app.utils.email import send_onboarding_email
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -64,6 +64,11 @@ def list_clinics(x_api_key: str = Header(default="")):
 def list_competitor_queries(limit: int = 50, x_api_key: str = Header(default="")):
     require_api_key(x_api_key)
     return {"queries": get_competitor_queries(limit)}
+
+@router.get("/feedback-stats")
+def list_feedback_stats(limit: int = 100, x_api_key: str = Header(default="")):
+    require_api_key(x_api_key)
+    return {"feedback": get_feedback_stats(limit)}
 
 
 @router.get('/ui')
