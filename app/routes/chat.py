@@ -234,6 +234,21 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
                     pass
             return ChatResponse(reply=reply, session_id=session_id, handoff=True, handoff_reason="medical_advice_request")
 
+    # --- GUARDRAILS (Competitors) ---
+    # Prevent discussion of competitors.
+    competitor_keywords = ["competitor", "other clinic", "other dentist", "other agency", "compare you to"]
+    if any(x in user_text.lower() for x in competitor_keywords):
+        reply = (
+            f"I can only provide information about {clinic.get('clinic_name')}. "
+            f"If you have questions about our services, prices, or availability, feel free to ask!"
+        )
+        if is_real_clinic:
+            try:
+                insert_message(session["id"], "assistant", reply)
+            except Exception:
+                pass
+        return ChatResponse(reply=reply, session_id=session_id, handoff=False)
+
     # ✅ memory: last N messages
     if is_real_clinic:
         try:
