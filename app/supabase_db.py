@@ -131,3 +131,14 @@ def log_competitor_query(
 def delete_session_messages(session_uuid: str) -> None:
     sb = get_supabase_client()
     sb.table("chat_messages").delete().eq("session_id", session_uuid).execute()
+
+def get_competitor_queries(limit: int = 50) -> list[dict]:
+    sb = get_supabase_client()
+    res = (
+        sb.table("competitor_queries")
+        .select("*, clinics(clinic_name, clinic_id)")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return res.data or []

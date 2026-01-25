@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Header, Request
 from fastapi.responses import RedirectResponse
 from app.config import settings
-from app.supabase_db import get_supabase_client
+from app.supabase_db import get_supabase_client, get_competitor_queries
 from app.utils.email import send_onboarding_email
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -60,9 +60,13 @@ def list_clinics(x_api_key: str = Header(default="")):
     res = sb.table("clinics").select("clinic_id,clinic_name,status,plan,created_at").order("created_at", desc=True).limit(100).execute()
     return {"clinics": res.data or []}
 
+@router.get("/competitor-queries")
+def list_competitor_queries(limit: int = 50, x_api_key: str = Header(default="")):
+    require_api_key(x_api_key)
+    return {"queries": get_competitor_queries(limit)}
+
 
 @router.get('/ui')
 def admin_ui(request: Request, x_api_key: str = Header(default="")):
         # Serve the static admin UI for onboarding clinics
         return RedirectResponse(url='/static/admin.html')
-
