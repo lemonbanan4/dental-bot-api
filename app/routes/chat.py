@@ -16,6 +16,7 @@ from app.supabase_db import (
     get_or_create_session,
     insert_message,
     fetch_recent_messages,
+    log_competitor_query,
 )
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -237,7 +238,9 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
     # --- GUARDRAILS (Competitors) ---
     # Prevent discussion of competitors.
     competitor_keywords = ["competitor", "other clinic", "other dentist", "other agency", "compare you to"]
-    if any(x in user_text.lower() for x in competitor_keywords):
+    matched_keyword = next((x for x in competitor_keywords if x in user_text.lower()), None)
+
+    if matched_keyword:
         reply = (
             f"I can only provide information about {clinic.get('clinic_name')}. "
             f"If you have questions about our services, prices, or availability, feel free to ask!"
@@ -245,6 +248,7 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
         if is_real_clinic:
             try:
                 insert_message(session["id"], "assistant", reply)
+                log_competitor_query(clinic.get("id"), session["id"], user_text, matched_keyword)
             except Exception:
                 pass
         return ChatResponse(reply=reply, session_id=session_id, handoff=False)

@@ -114,4 +114,16 @@ def create_lead(
     }).execute()
     return (res.data or [])[0] if res.data else {"ok": True}
 
-
+def log_competitor_query(
+    clinic_uuid: str,
+    session_uuid: str,
+    query: str,
+    detected_keyword: str
+) -> None:
+    sb = get_supabase_client()
+    sb.table("competitor_queries").insert({
+        "clinic_id": clinic_uuid,
+        "session_id": session_uuid,
+        "query": query,
+        "detected_keyword": detected_keyword,
+    }).execute()
