@@ -43,6 +43,10 @@ def send_lead_email(to_email: str, clinic_name: str, lead: dict, logo_url: Optio
     msg['Subject'] = f"New lead from {clinic_name or 'Dental Bot'}"
     msg['From'] = settings.email_from
     msg['To'] = to_email
+    
+    if lead.get('email'):
+        msg['Reply-To'] = lead.get('email')
+
     msg.set_content(text)
     msg.add_alternative(html, subtype='html')
 
