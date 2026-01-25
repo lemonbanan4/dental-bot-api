@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from typing import Dict, Any
 import json
@@ -131,7 +131,7 @@ DEMO_CLINICS = {
 }
 
 @router.post("", response_model=ChatResponse)
-async def chat(req: ChatRequest, request: Request, stream: bool = False):
+async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundTasks, stream: bool = False):
     limit(request, max_per_minute=90)
 
     # Try Supabase first, then fallback to demo data
@@ -248,9 +248,9 @@ async def chat(req: ChatRequest, request: Request, stream: bool = False):
         if is_real_clinic:
             try:
                 insert_message(session["id"], "assistant", reply)
-                log_competitor_query(clinic.get("id"), session["id"], user_text, matched_keyword)
             except Exception:
                 pass
+            background_tasks.add_task(log_competitor_query, clinic.get("id"), session["id"], user_text, matched_keyword)
         return ChatResponse(reply=reply, session_id=session_id, handoff=False)
 
     # ✅ memory: last N messages
