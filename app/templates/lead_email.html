@@ -1,39 +1,147 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Lead</title>
     <style>
-      body { font-family: system-ui, -apple-system, Arial, sans-serif; color:#111; }
-      .card { border-radius:8px; padding:20px; border:1px solid #eee; }
-      .brand { display:flex; align-items:center; gap:12px; }
-      .logo { width:48px; height:48px; border-radius:6px; background:#f3f4f6; object-fit:cover }
-      .accent { color: {{ theme or '#16a34a' }} }
-      .lead-field { margin:8px 0; }
-      pre { background:#f9fafb; padding:12px; border-radius:6px; overflow:auto }
+        /* Reset & Base */
+        body, p, h1, h2, h3, div { margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #f4f4f7; 
+            color: #51545E; 
+            line-height: 1.6; 
+        }
+        
+        /* Container */
+        .email-wrapper { width: 100%; background-color: #f4f4f7; padding: 20px 0; }
+        .email-content { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background-color: #ffffff; 
+            border-radius: 8px; 
+            overflow: hidden; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+        }
+        
+        /* Header */
+        .email-header { background-color: #2c3e50; padding: 20px; text-align: center; color: #ffffff; }
+        .email-header h1 { font-size: 20px; font-weight: 600; margin: 0; }
+        
+        /* Body */
+        .email-body { padding: 30px; }
+        .lead-card { 
+            background-color: #f8f9fa; 
+            border-left: 4px solid #3498db; 
+            padding: 15px; 
+            margin-bottom: 20px; 
+            border-radius: 4px; 
+        }
+        .field-group { margin-bottom: 15px; }
+        .label { 
+            font-size: 12px; 
+            text-transform: uppercase; 
+            color: #8898aa; 
+            font-weight: bold; 
+            letter-spacing: 0.5px; 
+            margin-bottom: 4px; 
+            display: block; 
+        }
+        .value { font-size: 16px; color: #333; font-weight: 500; }
+        .message-box { 
+            background-color: #fff; 
+            border: 1px solid #e9ecef; 
+            padding: 15px; 
+            border-radius: 4px; 
+            margin-top: 5px; 
+            white-space: pre-wrap;
+        }
+        
+        /* Footer */
+        .email-footer { padding: 20px; text-align: center; font-size: 12px; color: #8898aa; background-color: #f4f4f7; }
+        
+        /* Utilities */
+        a { color: #3498db; text-decoration: none; }
+        .cta-button { 
+            display: inline-block; 
+            background-color: #3498db; 
+            color: #ffffff; 
+            padding: 10px 20px; 
+            border-radius: 4px; 
+            text-decoration: none; 
+            font-weight: bold; 
+            margin-top: 10px; 
+        }
     </style>
-  </head>
-  <body>
-    <div class="card">
-      <div class="brand">
-        {% if logo_url %}
-          <img class="logo" src="{{ logo_url }}" alt="logo" />
-        {% endif %}
-        <div>
-          <div class="accent"><strong>New lead — {{ clinic_name }}</strong></div>
-          <div style="font-size:13px;color:#666">Received via Dental Bot widget</div>
+</head>
+<body>
+    <div class="email-wrapper">
+        <div class="email-content">
+            <!-- Header -->
+            <div class="email-header">
+                {% if logo_url %}
+                    <img src="{{ logo_url }}" alt="{{ clinic_name }}" style="max-height: 40px;">
+                {% else %}
+                    <h1>{{ clinic_name }}</h1>
+                {% endif %}
+            </div>
+            
+            <!-- Body -->
+            <div class="email-body">
+                <h2 style="margin-bottom: 20px; color: #333;">New Lead Received</h2>
+                <p style="margin-bottom: 20px;">You have received a new inquiry from your website assistant.</p>
+                
+                <div class="lead-card">
+                    <div class="field-group">
+                        <span class="label">Name</span>
+                        <div class="value">{{ lead.name or 'Not provided' }}</div>
+                    </div>
+                    
+                    <div class="field-group">
+                        <span class="label">Phone</span>
+                        <div class="value">
+                            {% if lead.phone %}
+                                <a href="tel:{{ lead.phone }}">{{ lead.phone }}</a>
+                            {% else %}
+                                <span style="color: #999;">Not provided</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="field-group">
+                        <span class="label">Email</span>
+                        <div class="value">
+                            {% if lead.email %}
+                                <a href="mailto:{{ lead.email }}">{{ lead.email }}</a>
+                            {% else %}
+                                <span style="color: #999;">Not provided</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="field-group">
+                    <span class="label">Message / Context</span>
+                    <div class="message-box">{{ lead.message or 'No additional message provided.' }}</div>
+                </div>
+
+                <div style="text-align: center; margin-top: 30px;">
+                    {% if lead.email %}
+                        <a href="mailto:{{ lead.email }}" class="cta-button">Reply via Email</a>
+                    {% endif %}
+                    {% if lead.phone %}
+                        <a href="tel:{{ lead.phone }}" class="cta-button" style="background-color: #2ecc71; margin-left: 10px;">Call Now</a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="email-footer">
+                <p>Session ID: {{ lead.session_id }}</p>
+                <p style="margin-top: 10px;">Powered by Dental Bot API</p>
+            </div>
         </div>
-      </div>
-
-      <h3 style="margin-top:16px">Lead details</h3>
-      <div class="lead-field"><strong>Name:</strong> {{ lead.name or '—' }}</div>
-      <div class="lead-field"><strong>Phone:</strong> {{ lead.phone or '—' }}</div>
-      <div class="lead-field"><strong>Email:</strong> {{ lead.email or '—' }}</div>
-      <div class="lead-field"><strong>Message:</strong>
-        <div><pre>{{ lead.message or '' }}</pre></div>
-      </div>
-
-      <div style="margin-top:12px;font-size:13px;color:#555">Session: {{ lead.session_id or '—' }}</div>
     </div>
-  </body>
+</body>
 </html>

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
     smtp_user: str = Field(default="", alias="SMTP_USER")
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
-    email_from: str = Field(default="no-reply@lemontechno.org", alias="EMAIL_FROM")
+    email_from: str = Field(default="info@lemontechno.org", alias="EMAIL_FROM")
     admin_email: str = Field(default="info@lemontechno.org", alias="ADMIN_EMAIL")
 
 
@@ -41,8 +41,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode='after')
     def set_default_email_from(self):
-        # If email_from is default/empty but smtp_user is set, use smtp_user to avoid delivery errors
-        if (not self.email_from or self.email_from == "no-reply@lemontechno.org") and self.smtp_user:
+        # Only override if email_from is completely missing/empty
+        if (self.email_from is None or self.email_from == "") and self.smtp_user:
             self.email_from = self.smtp_user
         return self
     
