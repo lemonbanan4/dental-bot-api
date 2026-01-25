@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Header, Request
+from typing import Optional
 from fastapi.responses import RedirectResponse
 from app.config import settings
 from app.supabase_db import get_supabase_client, get_competitor_queries, get_feedback_stats, get_feedback_counts
@@ -71,9 +72,13 @@ def list_feedback_stats(limit: int = 100, x_api_key: str = Header(default="")):
     return {"feedback": get_feedback_stats(limit)}
 
 @router.get("/feedback-counts")
-def list_feedback_counts(x_api_key: str = Header(default="")):
+def list_feedback_counts(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    x_api_key: str = Header(default="")
+):
     require_api_key(x_api_key)
-    return {"counts": get_feedback_counts()}
+    return {"counts": get_feedback_counts(start_date, end_date)}
 
 
 @router.get('/ui')

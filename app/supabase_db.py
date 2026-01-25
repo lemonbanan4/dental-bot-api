@@ -163,16 +163,18 @@ def get_feedback_stats(limit: int = 100) -> list[dict]:
     )
     return res.data or []
 
-def get_feedback_counts() -> list[dict]:
+def get_feedback_counts(start_date: Optional[str] = None, end_date: Optional[str] = None) -> list[dict]:
     sb = get_supabase_client()
     # Fetch data to aggregate
     # Note: For very large datasets, consider creating a SQL View or RPC.
-    res = (
-        sb.table("chat_feedback")
-        .select("rating, clinic_id, clinics(clinic_name)")
-        .limit(1000)
-        .execute()
-    )
+    query = sb.table("chat_feedback").select("rating, clinic_id, clinics(clinic_name)")
+
+    if start_date:
+        query = query.gte("created_at", start_date)
+    if end_date:
+        query = query.lte("created_at", end_date)
+
+    res = query.limit(1000).execute()
     rows = res.data or []
     
     stats = {}
