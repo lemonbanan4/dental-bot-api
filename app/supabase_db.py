@@ -165,33 +165,13 @@ def get_feedback_stats(limit: int = 100) -> list[dict]:
 
 def get_feedback_counts(start_date: Optional[str] = None, end_date: Optional[str] = None) -> list[dict]:
     sb = get_supabase_client()
-    # Fetch data to aggregate
-    # Note: For very large datasets, consider creating a SQL View or RPC.
-    query = sb.table("chat_feedback").select("rating, clinic_id, clinics(clinic_name)")
-
-    if start_date:
-        query = query.gte("created_at", start_date)
-    if end_date:
-        query = query.lte("created_at", end_date)
-
-    res = query.limit(1000).execute()
-    rows = res.data or []
     
-    stats = {}
-    for row in rows:
-        c_id = row.get("clinic_id")
-        if not c_id:
-            continue
-            
-        if c_id not in stats:
-            c_name = row.get("clinics", {}).get("clinic_name", "Unknown") if row.get("clinics") else "Unknown"
-            stats[c_id] = {"clinic_id": c_id, "clinic_name": c_name, "up": 0, "down": 0, "total": 0}
+    # Use the database function (RPC) for efficient server-side aggregation
+    params = {}
+    if start_date:
+        params["start_date"] = start_date
+    if end_date:
+        params["end_date"] = end_date
         
-        rating = row.get("rating")
-        if rating == "up":
-            stats[c_id]["up"] += 1
-        elif rating == "down":
-            stats[c_id]["down"] += 1
-        stats[c_id]["total"] += 1
-        
-    return list(stats.values())
+    res = sb.rpc("get_clinic_feedback_stats", params).execute()
+    return res.data or []
