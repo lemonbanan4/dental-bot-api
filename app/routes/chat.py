@@ -290,3 +290,37 @@ async def chat(req: ChatRequest, request: Request, background_tasks: BackgroundT
             yield (json.dumps({"error": str(e)}) + "\n").encode()
 
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
+
+@router.get("/history")
+async def get_history(clinic_id: str, session_id: str):
+    """Retrieve chat history for a specific session."""
+    # Try Supabase first
+    clinic = None
+    try:
+        clinic = get_clinic_by_public_id(clinic_id)
+    except Exception:
+        pass
+    
+    # If not found in DB, check demo clinics
+    if not clinic:
+        if clinic_id in DEMO_CLINICS:
+            # Demo clinics are stateless/in-memory per request in this architecture
+            return {"history": []}
+        raise HTTPException(status_code=404, detail="Clinic not found")
+
+    # Real clinic: fetch from Supabase
+    try:
+        # Resolve session_key to internal session_id
+        session = get_or_create_session(
+            clinic_uuid=clinic["id"],
+            session_key=session_id,
+            user_locale=None,
+            page_url=None,
+            user_agent=None,
+            ip_hash=None,
+        )
+        messages = fetch_recent_messages(session["id"], limit=50)
+        return {"history": messages}
+    except Exception as e:
+        print(f"Error fetching history: {e}")
+        return {"history": []}
