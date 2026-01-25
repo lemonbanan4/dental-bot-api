@@ -1,11 +1,12 @@
 import csv
 import io
-from fastapi import APIRouter, HTTPException, Header, Request
+from fastapi import APIRouter, HTTPException, Header, Request, BackgroundTasks
 from typing import Optional
 from fastapi.responses import RedirectResponse, StreamingResponse
 from app.config import settings
 from app.supabase_db import get_supabase_client, get_competitor_queries, get_feedback_stats, get_feedback_counts, export_feedback_data
 from app.utils.email import send_onboarding_email
+from app.services.summary_service import send_weekly_summary_email
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -125,3 +126,14 @@ def export_feedback_csv(
 def admin_ui(request: Request, x_api_key: str = Header(default="")):
         # Serve the static admin UI for onboarding clinics
         return RedirectResponse(url='/static/admin.html')
+
+@router.post("/cron/weekly-summary")
+def trigger_weekly_summary(background_tasks: BackgroundTasks, x_api_key: str = Header(default="")):
+    require_api_key(x_api_key)
+    
+    target_email = settings.admin_email or settings.smtp_user
+    if not target_email:
+        raise HTTPException(status_code=500, detail="No admin email configured")
+        
+    background_tasks.add_task(send_weekly_summary_email, target_email)
+    return {"ok": True, "message": "Weekly summary task triggered"}

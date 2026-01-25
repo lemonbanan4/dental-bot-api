@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import Field, model_validator
 from typing import List
 
 class Settings(BaseSettings):
@@ -30,12 +30,20 @@ class Settings(BaseSettings):
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
     smtp_user: str = Field(default="", alias="SMTP_USER")
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
-    email_from: str = Field(default="no-reply@example.com", alias="EMAIL_FROM")
+    email_from: str = Field(default="no-reply@lemontechno.org", alias="EMAIL_FROM")
+    admin_email: str = Field(default="info@lemontechno.org", alias="ADMIN_EMAIL")
 
 
     def origins_list(self) -> List[str]:
         if self.allowed_origins.strip() == "*":
             return ["*"]
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    @model_validator(mode='after')
+    def set_default_email_from(self):
+        # If email_from is default/empty but smtp_user is set, use smtp_user to avoid delivery errors
+        if (not self.email_from or self.email_from == "no-reply@lemontechno.org") and self.smtp_user:
+            self.email_from = self.smtp_user
+        return self
     
 settings = Settings()
