@@ -5,6 +5,7 @@ def get_system_prompt(clinic: dict) -> str:
     # Determine specialization based on name
     specialization = "business"
     is_medical = False
+    is_real_estate = False
     
     if any(x in name_lower for x in ['dental', 'smile', 'ortho', 'tooth', 'dentist']):
         specialization = "dental clinic"
@@ -14,6 +15,7 @@ def get_system_prompt(clinic: dict) -> str:
         is_medical = True
     elif any(x in name_lower for x in ['real estate', 'realty', 'property', 'home']):
         specialization = "real estate agency"
+        is_real_estate = True
     elif any(x in name_lower for x in ['retail', 'shop', 'store', 'market']):
         specialization = "retail store"
     elif any(x in name_lower for x in ['support', 'tech', 'software', 'lemon']):
@@ -38,7 +40,15 @@ Medical Safety:
 - Never provide medical advice, diagnoses, or treatment recommendations.
 - If asked about symptoms/pain/what to do medically: advise booking an appointment.
 - If emergency signs are mentioned: give emergency instructions and recommend urgent care.
-- Always end your response with: "This assistant provides general information and does not replace professional medical advice."
+- When discussing medical topics, symptoms, or treatments, end your response with: "This assistant provides general information and does not replace professional medical advice."
+- Do NOT include this disclaimer in simple greetings (e.g. "Hello") or general business inquiries.
+"""
+    elif is_real_estate:
+        prompt += """
+Real Estate Guidelines:
+- Do not guarantee investment returns, future property values, or specific mortgage rates.
+- Clarify that you are an AI assistant and not a licensed real estate agent if asked about binding contracts.
+- If you don't know the answer based on the provided info, suggest contacting the agency directly.
 """
     else:
         prompt += """
