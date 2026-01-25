@@ -45,3 +45,9 @@ class LeadRequest(BaseModel):
 
 class LeadResponse(BaseModel):
     ok: bool = True
+
+class FeedbackRequest(BaseModel):
+    clinic_id: str
+    session_id: str
+    rating: str  # "up" or "down"
+    comment: Optional[str] = None

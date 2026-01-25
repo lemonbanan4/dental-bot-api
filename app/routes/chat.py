@@ -5,7 +5,7 @@ import json
 from uuid import uuid4
 import time
 
-from app.models import ChatRequest, ChatResponse
+from app.models import ChatRequest, ChatResponse, FeedbackRequest
 from app.prompts import get_system_prompt
 from app.services.llm import chat_completion, chat_completion_stream
 from app.services.guardrails import is_emergency, is_symptom_or_diagnosis_request
@@ -19,6 +19,7 @@ from app.supabase_db import (
     fetch_recent_messages,
     log_competitor_query,
     delete_session_messages,
+    insert_feedback,
 )
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -375,3 +376,38 @@ async def clear_history(clinic_id: str, session_id: str):
     except Exception as e:
         print(f"Error clearing history: {e}")
         raise HTTPException(status_code=500, detail="Failed to clear history")
+
+@router.post("/feedback")
+async def submit_feedback(req: FeedbackRequest, background_tasks: BackgroundTasks):
+    """Submit user feedback (thumbs up/down) for a chat session."""
+    # Try Supabase first
+    clinic = None
+    try:
+        clinic = get_clinic_by_public_id(req.clinic_id)
+    except Exception:
+        pass
+    
+    # If not found in DB, check demo clinics
+    if not clinic:
+        if req.clinic_id in DEMO_CLINICS:
+            # Demo clinics are stateless; just return success
+            return {"ok": True}
+        raise HTTPException(status_code=404, detail="Clinic not found")
+
+    # Real clinic: log to Supabase
+    try:
+        # Resolve session_key to internal session_id
+        session = get_or_create_session(
+            clinic_uuid=clinic["id"],
+            session_key=req.session_id,
+            user_locale=None,
+            page_url=None,
+            user_agent=None,
+            ip_hash=None,
+        )
+        background_tasks.add_task(run_with_retry, insert_feedback, clinic["id"], session["id"], req.rating, req.comment)
+    except Exception as e:
+        print(f"Error submitting feedback: {e}")
+        # We don't raise 500 here to avoid breaking the client UI for a non-critical error
+    
+    return {"ok": True}

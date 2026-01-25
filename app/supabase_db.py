@@ -142,3 +142,12 @@ def get_competitor_queries(limit: int = 50) -> list[dict]:
         .execute()
     )
     return res.data or []
+
+def insert_feedback(clinic_uuid: str, session_uuid: str, rating: str, comment: Optional[str]) -> None:
+    sb = get_supabase_client()
+    sb.table("chat_feedback").insert({
+        "clinic_id": clinic_uuid,
+        "session_id": session_uuid,
+        "rating": rating,
+        "comment": comment,
+    }).execute()
