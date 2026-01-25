@@ -127,3 +127,7 @@ def log_competitor_query(
         "query": query,
         "detected_keyword": detected_keyword,
     }).execute()
+
+def delete_session_messages(session_uuid: str) -> None:
+    sb = get_supabase_client()
+    sb.table("chat_messages").delete().eq("session_id", session_uuid).execute()

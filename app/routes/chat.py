@@ -18,6 +18,7 @@ from app.supabase_db import (
     insert_message,
     fetch_recent_messages,
     log_competitor_query,
+    delete_session_messages,
 )
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -340,3 +341,37 @@ async def get_history(clinic_id: str, session_id: str):
     except Exception as e:
         print(f"Error fetching history: {e}")
         return {"history": []}
+
+@router.delete("/history")
+async def clear_history(clinic_id: str, session_id: str):
+    """Clear chat history for a specific session."""
+    # Try Supabase first
+    clinic = None
+    try:
+        clinic = get_clinic_by_public_id(clinic_id)
+    except Exception:
+        pass
+    
+    # If not found in DB, check demo clinics
+    if not clinic:
+        if clinic_id in DEMO_CLINICS:
+            # Demo clinics are stateless/in-memory per request in this architecture
+            return {"ok": True}
+        raise HTTPException(status_code=404, detail="Clinic not found")
+
+    # Real clinic: delete from Supabase
+    try:
+        # Resolve session_key to internal session_id
+        session = get_or_create_session(
+            clinic_uuid=clinic["id"],
+            session_key=session_id,
+            user_locale=None,
+            page_url=None,
+            user_agent=None,
+            ip_hash=None,
+        )
+        delete_session_messages(session["id"])
+        return {"ok": True}
+    except Exception as e:
+        print(f"Error clearing history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear history")
