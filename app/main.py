@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
@@ -32,6 +33,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Trusted Host Configuration: Prevent Host Header Attacks
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=settings.hosts_list(),
 )
 
 # Startup event: Initialize Redis connection

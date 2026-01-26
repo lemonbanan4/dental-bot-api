@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     app_env: str = Field(default="dev", alias="APP_ENV")
     api_key: str = Field(default="change-me", alias="API_KEY")
     allowed_origins: str = Field(default="*", alias="ALLOWED_ORIGINS")
+    allowed_hosts: str = Field(default="*", alias="ALLOWED_HOSTS")
 
     llm_provider: str = Field(default="openai", alias="LLM_PROVIDER")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
@@ -38,6 +39,11 @@ class Settings(BaseSettings):
         if self.allowed_origins.strip() == "*":
             return ["*"]
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    def hosts_list(self) -> List[str]:
+        if self.allowed_hosts.strip() == "*":
+            return ["*"]
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
 
     @model_validator(mode='after')
     def set_default_email_from(self):
