@@ -25,9 +25,8 @@ jobs:
 
     - name: Lint with flake8
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        # E9: syntax error, F63: local variable used before assignment, F7: forward annotation reference error, F82: undefined name
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Run flake8 using configuration from .flake8 file
+        flake8 . --count --show-source --statistics
         
     - name: Run tests
       run: |

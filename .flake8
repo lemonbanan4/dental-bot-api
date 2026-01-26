@@ -1,0 +1,21 @@
+[flake8]
+# Exclude specific directories from linting
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    build,
+    dist
+
+# Ignore specific error codes
+# E501: Line too long (default 79 chars is often too strict)
+ignore = E501
+
+# Set maximum line length (if you choose to enforce it)
+max-line-length = 120
+
+# Example: Ignore unused imports in __init__.py files
+# per-file-ignores =
+#     __init__.py:F401
