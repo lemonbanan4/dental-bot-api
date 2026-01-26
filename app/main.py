@@ -92,7 +92,7 @@ async def health():
         "redis_connected": redis_ok,
     }
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     """Root endpoint."""
     return {
