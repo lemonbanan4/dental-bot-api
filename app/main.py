@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
@@ -103,6 +104,42 @@ async def health():
 async def healthz():
     """Kubernetes liveness probe endpoint."""
     return {"status": "ok"}
+
+@app.get("/ready")
+async def readiness():
+    """Kubernetes readiness probe checking Redis and Supabase."""
+    checks = {
+        "redis": "n/a",
+        "supabase": "down"
+    }
+    is_ready = True
+
+    # Check Redis if configured
+    if settings.redis_url:
+        checks["redis"] = "down"
+        if hasattr(app.state, "redis") and app.state.redis:
+            try:
+                await app.state.redis.ping()
+                checks["redis"] = "up"
+            except Exception:
+                is_ready = False
+        else:
+            is_ready = False
+    
+    # Check Supabase
+    try:
+        from app.supabase_db import get_supabase_client
+        sb = get_supabase_client()
+        # Minimal query to check connectivity (fetch 0 rows, just check API)
+        sb.table("clinics").select("count", count="exact").limit(0).execute()
+        checks["supabase"] = "up"
+    except Exception:
+        is_ready = False
+
+    if not is_ready:
+        return JSONResponse(status_code=503, content={"status": "not ready", "checks": checks})
+    
+    return {"status": "ready", "checks": checks}
 
 @app.api_route("/", methods=["GET", "HEAD"])
 async def root():
