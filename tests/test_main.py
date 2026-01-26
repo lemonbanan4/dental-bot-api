@@ -193,3 +193,36 @@ def test_feedback_endpoint():
             "up",
             "Great service!"
         )
+
+def test_lead_submission_endpoint():
+    """Test the lead submission endpoint."""
+    fake_clinic = {
+        "id": "real-clinic-uuid", 
+        "clinic_id": "real-clinic", 
+        "clinic_name": "Real Clinic",
+        "contact_email": "clinic@example.com"
+    }
+
+    # Patch DB and Email functions in the leads router
+    with patch("app.routes.leads.get_clinic_by_public_id", return_value=fake_clinic), \
+         patch("app.routes.leads.create_lead", return_value={"id": "lead-123"}) as mock_create_lead, \
+         patch("app.routes.leads.send_lead_email", return_value=True) as mock_send_email:
+        
+        payload = {
+            "clinic_id": "real-clinic",
+            "name": "John Doe",
+            "phone": "555-0199",
+            "email": "john@example.com",
+            "message": "Interested in implants"
+        }
+        
+        response = client.post("/leads", json=payload)
+        
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
+        
+        # Verify create_lead was called
+        mock_create_lead.assert_called_once()
+        
+        # Verify email was sent
+        mock_send_email.assert_called_once()
