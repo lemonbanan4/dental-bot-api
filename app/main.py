@@ -92,6 +92,11 @@ async def health():
         "redis_connected": redis_ok,
     }
 
+@app.get("/healthz")
+async def healthz():
+    """Kubernetes liveness probe endpoint."""
+    return {"status": "ok"}
+
 @app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     """Root endpoint."""
