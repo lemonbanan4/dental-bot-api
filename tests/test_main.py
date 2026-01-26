@@ -163,3 +163,33 @@ def test_chat_endpoint_competitor_guardrail():
             "Is there a better competitor nearby?", 
             "competitor"
         )
+
+def test_feedback_endpoint():
+    """Test the feedback submission endpoint."""
+    fake_clinic = {"id": "real-clinic-uuid", "clinic_id": "real-clinic"}
+    fake_session = {"id": "real-session-uuid"}
+
+    # Patch DB functions to simulate a real clinic interaction
+    with patch("app.routes.chat.get_clinic_by_public_id", return_value=fake_clinic), \
+         patch("app.routes.chat.get_or_create_session", return_value=fake_session), \
+         patch("app.routes.chat.insert_feedback") as mock_insert_feedback:
+        
+        payload = {
+            "clinic_id": "real-clinic",
+            "session_id": "user-session-key",
+            "rating": "up",
+            "comment": "Great service!"
+        }
+        
+        response = client.post("/chat/feedback", json=payload)
+        
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
+        
+        # Verify insert_feedback was called with correct arguments
+        mock_insert_feedback.assert_called_once_with(
+            "real-clinic-uuid",
+            "real-session-uuid",
+            "up",
+            "Great service!"
+        )
