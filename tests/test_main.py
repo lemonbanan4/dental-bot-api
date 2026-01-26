@@ -118,4 +118,48 @@ def test_chat_endpoint_medical_symptom_guardrail():
         mock_chat_completion.assert_not_called()
         # Verify insert_message was called for the assistant's reply
         mock_insert_message.assert_called_once_with("test-symptom-session", "assistant", expected_reply)
-        mock_chat.assert_called_once()
+
+def test_chat_endpoint_competitor_guardrail():
+    """Test that the competitor guardrail triggers correctly."""
+    clinic_id = "smile-city-001"
+    clinic_data = DEMO_CLINICS[clinic_id]
+    
+    expected_reply = (
+        f"I can only provide information about {clinic_data.get('clinic_name')}. "
+        f"If you have questions about our services, prices, or availability, feel free to ask!"
+    )
+
+    # Patch functions where they are used in app.routes.chat
+    # Note: We patch app.routes.chat.insert_message because it is imported there
+    with patch("app.routes.chat.insert_message", new_callable=AsyncMock) as mock_insert_message, \
+         patch("app.routes.chat.log_competitor_query", new_callable=AsyncMock) as mock_log_competitor, \
+         patch("app.routes.chat.chat_completion", new_callable=AsyncMock) as mock_chat_completion:
+        
+        payload = {
+            "clinic_id": clinic_id,
+            "message": "Is there a better competitor nearby?",
+            "session_id": "test-competitor-session"
+        }
+        
+        response = client.post("/chat", json=payload)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["reply"] == expected_reply
+        assert data["session_id"] == "test-competitor-session"
+        assert data["handoff"] is False
+        
+        # Verify LLM was NOT called
+        mock_chat_completion.assert_not_called()
+        
+        # Verify insert_message was called for the assistant's reply (most recent call)
+        mock_insert_message.assert_called_with("test-competitor-session", "assistant", expected_reply)
+        
+        # Verify log_competitor_query was called with correct args
+        mock_log_competitor.assert_called_once_with(
+            "demo-smile-city", 
+            "test-competitor-session", 
+            "Is there a better competitor nearby?", 
+            "competitor"
+        )
